@@ -2,7 +2,7 @@
 # Food Recognition System For Passio
 ## By: Sarah Hernandez
 
-### Complied in the Google Cloud Platform
+
 
 
 ```python
@@ -31,10 +31,10 @@ foodDir = currentDir + "/Food"
 notFoodDir = currentDir + "/Not Food"
 
 foodList = os.listdir(foodDir)
-numFoods = len(foodList)
+numFoods = 144 #len(foodList), entered original length before data augmentation
 
 notFoodList = os.listdir(notFoodDir)
-numNotFoods = len(notFoodList)
+numNotFoods = 125 #len(notFoodList), entered original length before data augmentation
 
 print("Foods: " + str(numFoods))
 print("Not Foods: " + str(numNotFoods))
@@ -52,12 +52,12 @@ for i in range(3):
 
     Foods: 144
     Not Foods: 125
-    Example Food Shape: (768, 1024, 3)
-    Example Not Food Shape: (4032, 3024, 3)
-    Example Food Shape: (1024, 1024, 3)
-    Example Not Food Shape: (640, 480, 3)
     Example Food Shape: (640, 640, 3)
-    Example Not Food Shape: (360, 640, 3)
+    Example Not Food Shape: (4032, 3024, 3)
+    Example Food Shape: (480, 640, 3)
+    Example Not Food Shape: (3024, 4032, 3)
+    Example Food Shape: (612, 612, 3)
+    Example Not Food Shape: (640, 360, 3)
 
 
 So we have fewer than 300 images of food and not food, of various square and rectangular sizes. This is a rather small data set, so we'll augment the data using a few tricks:
@@ -86,11 +86,8 @@ def get_image_dirs(foodList, notFoodList):
 
 foodDirs, notFoodDirs = get_image_dirs(foodList, notFoodList)
 
-print("Directories Created")
+
 ```
-
-    Directories Created
-
 
 
 ```python
@@ -105,8 +102,6 @@ for i in range(numFoods):
     cv2.imwrite(foodDir + "/ud" + str(i) + ".jpg", img3)
     cv2.imwrite(foodDir + "/rot90" + str(i) + ".jpg", img4)
     
-print("Food Flipped Images Created")
-
 for i in range(numNotFoods):
     img = cv2.imread(notFoodDirs[i])
     img2 = np.fliplr(img)
@@ -116,12 +111,11 @@ for i in range(numNotFoods):
     cv2.imwrite(notFoodDir + "/ud" + str(i) + ".jpg", img3)
     cv2.imwrite(notFoodDir + "/rot90" + str(i) + ".jpg", img4)
     
-print("Not Food Flipped Images Created")
+print("Completed")
 
 ```
 
-    Food Flipped Images Created
-    Not Food Flipped Images Created
+    Completed
 
 
 
@@ -135,6 +129,7 @@ foodDirs, notFoodDirs = get_image_dirs(foodList, notFoodList)
 
 print("Directories created")
     
+
 ```
 
     Directories created
@@ -222,7 +217,7 @@ class Generate_Dataset:
     def generate_data_labels(self, directory):
         labels = []
         # Because we're doing a simple binary classification, we can one-hot-encode here:
-        if "Not Food" in directory:
+        if "Not" in directory:
             label = [1, 0]
         else:
             label = [0, 1]
@@ -264,6 +259,13 @@ print("Dataset Generated")
     Dataset Generated
 
 
+
+```python
+
+
+
+```
+
 Okay, we've got an array of images, all scaled down to 256x256, and an array of labels that correspond to the images. But we still need to do some preprocessing:
 
 ### Step 4: Preprocess Data
@@ -277,6 +279,13 @@ def normalize(x):
     max_val = np.max(x)
     x = (x-min_val) / (max_val-min_val)
     return x
+```
+
+
+```python
+
+
+
 ```
 
 
@@ -369,6 +378,11 @@ print("All sets created and loaded")
     All sets created and loaded
 
 
+
+```python
+
+```
+
 ### Goal 2: Implement a neural network for classifying food vs non-food
 
 #### Step 1: Prepare Model 
@@ -378,6 +392,8 @@ We will prepare the model by creating several helper functions. The first of the
 
 
 ```python
+
+
 # Create methods to get mini-batches
 def get_mini_batches(batch_size, batch_images, batch_labels, batch_paths):
     # Returns images and labels in batches
@@ -418,11 +434,8 @@ def conv2d_maxpool(x_tensor, conv_num_outputs, conv_ksize, conv_strides, pool_ks
     h = math.ceil(float(h_in - conv_strides[0] + 1) / float(conv_strides[0]))
     w = math.ceil(float(w_in - conv_strides[1] + 1) / float(conv_strides[1]))
     
-    mean = 0.0
-    stddev = 0.01
-    weights_init = tf.random_normal([*conv_ksize, int(x_tensor.shape[3]), conv_num_outputs], mean=0.0, stddev=0.01, dtype=tf.float32)
-    weights = tf.Variable(weights_init)
     
+    weights = tf.Variable(tf.random_normal([*conv_ksize, int(x_tensor.shape[3]), conv_num_outputs], mean=0.0, stddev=0.01, dtype=tf.float32))  
     bias = tf.Variable(tf.zeros(conv_num_outputs))
     c_strides = [1, conv_strides[0], conv_strides[1], 1]
     p_strides = [1, pool_strides[0], pool_strides[1], 1]
@@ -453,7 +466,7 @@ def flatten(x_tensor):
     
     shape = x_tensor.get_shape().as_list()        
     dim = np.prod(shape[1:])            
-    x2 = tf.reshape(x_tensor, [-1, dim])          
+    x2 = tf.reshape(x_tensor, [-1, dim])           # Here, -1 means "all"
     
     return x2
 ```
@@ -488,18 +501,16 @@ def output(x_tensor, num_outputs):
     : num_outputs: The number of output that the new tensor should be.
     : return: A 2-D tensor where the second dimension is num_outputs.
     """
-    mean = 0.0
-    stddev = 0.01
-    weight_init = tf.truncated_normal([int(x_tensor.shape[-1]), num_outputs], mean=mean, stddev= stddev)
-    weights = tf.Variable(weight_init)
+    weights = tf.Variable(tf.truncated_normal([int(x_tensor.shape[-1]), num_outputs], mean=0.0, stddev=0.01))
 
-    
     bias = tf.Variable(tf.zeros([num_outputs]))
 
 
     output = tf.add(tf.matmul(x_tensor, weights), bias)
     
     return output 
+
+
 
 ```
 
@@ -552,7 +563,7 @@ def conv_net(x, keep_prob):
 
 ```python
 batch_size = 16
-epochs = 125
+epochs = 101
 keep_probability = .5
 learning_rate = 0.001
 
@@ -578,7 +589,7 @@ def train_neural_network(session, optimizer, keep_probability, image_batch, labe
 
 
 ```python
-def print_stats(session, image_batch, label_batch, cost, accuracy):
+def print_stats(session, image_batch, label_batch, cost, accuracy, typeOfStat):
     """
     Print information about loss and validation accuracy
     : session: Current TensorFlow session
@@ -591,10 +602,11 @@ def print_stats(session, image_batch, label_batch, cost, accuracy):
     transposed_images = np.array(image_batch).transpose(0, 3, 1, 2)
     
     loss = session.run(cost, feed_dict={x: transposed_images, y: np.array(label_batch), keep_prob: 1.0})
-    valid_acc = session.run(accuracy, feed_dict={"x:0": transposed_images, "y:0": np.array(label_batch), "keep_prob:0": 1.0})
+    acc = session.run(accuracy, feed_dict={"x:0": transposed_images, "y:0": np.array(label_batch), "keep_prob:0": 1.0})
     
+    print(typeOfStat + ' Loss: {:>10.4f} Accuracy: {:.6f}'.format(loss,acc))
     
-    print('Loss: {:>10.4f} Accuracy: {:.6f}'.format(loss,valid_acc))
+    return loss
 ```
 
 ### Step 3: Train the Model
@@ -634,6 +646,11 @@ with tf.Graph().as_default():
     correct_pred = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32), name= "accuracy")
 
+    # Keep track of loss, set up patience_count for early stopping:
+    train_loss = []
+    valid_loss = []
+    patience_count = 0
+    
     print("Training...")
     with tf.Session() as sess:
         # Initializing the variables
@@ -641,6 +658,7 @@ with tf.Graph().as_default():
         init_l = tf.local_variables_initializer()
         sess.run(init_g)
         sess.run(init_l)
+        
         # Training cycle
         for epoch in range(epochs):
             print("Epoch Number: " + str(epoch))
@@ -653,8 +671,24 @@ with tf.Graph().as_default():
                     train_neural_network(sess, optimizer, keep_probability, batch_images, batch_labels)
 
                 print("Epoch " + str(epoch) + ", Batch " + str(batch) + ": ")   
-                print_stats(sess, valid_images, valid_labels, cost, accuracy)
-            #learning_rate = learning_rate/1.05
+                print_stats(sess, valid_images, valid_labels, cost, accuracy, "Validation")
+            
+            # Display train and validation loss at the end of each epoch:
+            print("End of Epoch Losses:")
+            train_loss.append(print_stats(sess, batch_images, batch_labels, cost, accuracy, "Training"))
+            valid_loss.append(print_stats(sess, valid_images, valid_labels, cost, accuracy, "Validation"))
+            
+            # Implement early stopping:
+            patience = 15
+            min_delta = 0.01
+            if epoch > 0 and valid_loss[epoch-1] - valid_loss[epoch] > min_delta:
+                patience_count = 0
+            else:
+                patience_count += 1
+ 
+            if patience_count > patience:
+                print("Early stopping...Saving Model...")
+                break
    
                 
             
@@ -668,1402 +702,1496 @@ print("Training Completed")
     Training...
     Epoch Number: 0
     Epoch 0, Batch 0: 
-    Loss:     0.6807 Accuracy: 0.460465
+    Validation Loss:     0.6918 Accuracy: 0.544186
     Epoch 0, Batch 1: 
-    Loss:     0.6791 Accuracy: 0.804651
+    Validation Loss:     0.5762 Accuracy: 0.832558
     Epoch 0, Batch 2: 
-    Loss:     0.5938 Accuracy: 0.618605
+    Validation Loss:     0.6584 Accuracy: 0.553488
     Epoch 0, Batch 3: 
-    Loss:     0.5853 Accuracy: 0.660465
+    Validation Loss:     0.3982 Accuracy: 0.874419
     Epoch 0, Batch 4: 
-    Loss:     0.4902 Accuracy: 0.837209
+    Validation Loss:     0.2577 Accuracy: 0.869767
+    End of Epoch Losses:
+    Training Loss:     0.1028 Accuracy: 1.000000
+    Validation Loss:     0.2577 Accuracy: 0.869767
     Epoch Number: 1
     Epoch 1, Batch 0: 
-    Loss:     0.5472 Accuracy: 0.688372
+    Validation Loss:     0.3320 Accuracy: 0.869767
     Epoch 1, Batch 1: 
-    Loss:     0.3875 Accuracy: 0.841860
+    Validation Loss:     0.2822 Accuracy: 0.841860
     Epoch 1, Batch 2: 
-    Loss:     0.3462 Accuracy: 0.865116
+    Validation Loss:     0.2848 Accuracy: 0.874419
     Epoch 1, Batch 3: 
-    Loss:     0.3294 Accuracy: 0.860465
+    Validation Loss:     0.4109 Accuracy: 0.846512
     Epoch 1, Batch 4: 
-    Loss:     0.4580 Accuracy: 0.776744
+    Validation Loss:     0.3269 Accuracy: 0.841860
+    End of Epoch Losses:
+    Training Loss:     0.1269 Accuracy: 1.000000
+    Validation Loss:     0.3269 Accuracy: 0.841860
     Epoch Number: 2
     Epoch 2, Batch 0: 
-    Loss:     0.3373 Accuracy: 0.837209
+    Validation Loss:     0.2669 Accuracy: 0.869767
     Epoch 2, Batch 1: 
-    Loss:     0.3872 Accuracy: 0.841860
+    Validation Loss:     0.2919 Accuracy: 0.851163
     Epoch 2, Batch 2: 
-    Loss:     0.3080 Accuracy: 0.855814
+    Validation Loss:     0.3029 Accuracy: 0.869767
     Epoch 2, Batch 3: 
-    Loss:     0.3254 Accuracy: 0.869767
+    Validation Loss:     0.3649 Accuracy: 0.809302
     Epoch 2, Batch 4: 
-    Loss:     0.4109 Accuracy: 0.823256
+    Validation Loss:     0.3307 Accuracy: 0.837209
+    End of Epoch Losses:
+    Training Loss:     0.1940 Accuracy: 0.888889
+    Validation Loss:     0.3307 Accuracy: 0.837209
     Epoch Number: 3
     Epoch 3, Batch 0: 
-    Loss:     0.3599 Accuracy: 0.837209
+    Validation Loss:     0.2612 Accuracy: 0.874419
     Epoch 3, Batch 1: 
-    Loss:     0.5133 Accuracy: 0.702326
+    Validation Loss:     0.2887 Accuracy: 0.865116
     Epoch 3, Batch 2: 
-    Loss:     0.4510 Accuracy: 0.786047
+    Validation Loss:     0.2313 Accuracy: 0.874419
     Epoch 3, Batch 3: 
-    Loss:     0.2729 Accuracy: 0.888372
+    Validation Loss:     0.4932 Accuracy: 0.781395
     Epoch 3, Batch 4: 
-    Loss:     0.3531 Accuracy: 0.832558
+    Validation Loss:     0.3460 Accuracy: 0.827907
+    End of Epoch Losses:
+    Training Loss:     0.1120 Accuracy: 0.888889
+    Validation Loss:     0.3460 Accuracy: 0.827907
     Epoch Number: 4
     Epoch 4, Batch 0: 
-    Loss:     0.3961 Accuracy: 0.800000
+    Validation Loss:     0.2989 Accuracy: 0.841860
     Epoch 4, Batch 1: 
-    Loss:     0.4901 Accuracy: 0.744186
+    Validation Loss:     0.2195 Accuracy: 0.865116
     Epoch 4, Batch 2: 
-    Loss:     0.3442 Accuracy: 0.860465
+    Validation Loss:     0.3015 Accuracy: 0.865116
     Epoch 4, Batch 3: 
-    Loss:     0.3390 Accuracy: 0.855814
+    Validation Loss:     0.3728 Accuracy: 0.865116
     Epoch 4, Batch 4: 
-    Loss:     0.2734 Accuracy: 0.865116
+    Validation Loss:     0.3091 Accuracy: 0.846512
+    End of Epoch Losses:
+    Training Loss:     0.0706 Accuracy: 1.000000
+    Validation Loss:     0.3091 Accuracy: 0.846512
     Epoch Number: 5
     Epoch 5, Batch 0: 
-    Loss:     0.3111 Accuracy: 0.846512
+    Validation Loss:     0.2264 Accuracy: 0.879070
     Epoch 5, Batch 1: 
-    Loss:     0.3092 Accuracy: 0.869767
+    Validation Loss:     0.2570 Accuracy: 0.879070
     Epoch 5, Batch 2: 
-    Loss:     0.6058 Accuracy: 0.548837
+    Validation Loss:     0.3181 Accuracy: 0.841860
     Epoch 5, Batch 3: 
-    Loss:     0.3391 Accuracy: 0.832558
+    Validation Loss:     0.3246 Accuracy: 0.860465
     Epoch 5, Batch 4: 
-    Loss:     0.2875 Accuracy: 0.883721
+    Validation Loss:     0.3025 Accuracy: 0.855814
+    End of Epoch Losses:
+    Training Loss:     0.0219 Accuracy: 1.000000
+    Validation Loss:     0.3025 Accuracy: 0.855814
     Epoch Number: 6
     Epoch 6, Batch 0: 
-    Loss:     0.2670 Accuracy: 0.855814
+    Validation Loss:     0.2299 Accuracy: 0.869767
     Epoch 6, Batch 1: 
-    Loss:     0.2822 Accuracy: 0.883721
+    Validation Loss:     0.2603 Accuracy: 0.865116
     Epoch 6, Batch 2: 
-    Loss:     0.2888 Accuracy: 0.869767
+    Validation Loss:     0.4657 Accuracy: 0.869767
     Epoch 6, Batch 3: 
-    Loss:     0.2613 Accuracy: 0.883721
+    Validation Loss:     0.3656 Accuracy: 0.837209
     Epoch 6, Batch 4: 
-    Loss:     0.2784 Accuracy: 0.865116
+    Validation Loss:     0.2349 Accuracy: 0.888372
+    End of Epoch Losses:
+    Training Loss:     0.1459 Accuracy: 1.000000
+    Validation Loss:     0.2349 Accuracy: 0.888372
     Epoch Number: 7
     Epoch 7, Batch 0: 
-    Loss:     0.2631 Accuracy: 0.883721
+    Validation Loss:     0.3534 Accuracy: 0.823256
     Epoch 7, Batch 1: 
-    Loss:     0.2882 Accuracy: 0.888372
+    Validation Loss:     0.2373 Accuracy: 0.897674
     Epoch 7, Batch 2: 
-    Loss:     0.3000 Accuracy: 0.888372
+    Validation Loss:     0.3166 Accuracy: 0.897674
     Epoch 7, Batch 3: 
-    Loss:     0.2263 Accuracy: 0.883721
+    Validation Loss:     0.2570 Accuracy: 0.916279
     Epoch 7, Batch 4: 
-    Loss:     0.2525 Accuracy: 0.897674
+    Validation Loss:     0.2793 Accuracy: 0.874419
+    End of Epoch Losses:
+    Training Loss:     0.0118 Accuracy: 1.000000
+    Validation Loss:     0.2793 Accuracy: 0.874419
     Epoch Number: 8
     Epoch 8, Batch 0: 
-    Loss:     0.3138 Accuracy: 0.851163
+    Validation Loss:     0.2343 Accuracy: 0.888372
     Epoch 8, Batch 1: 
-    Loss:     0.2820 Accuracy: 0.855814
+    Validation Loss:     0.3072 Accuracy: 0.869767
     Epoch 8, Batch 2: 
-    Loss:     2.3751 Accuracy: 0.604651
+    Validation Loss:     0.3760 Accuracy: 0.874419
     Epoch 8, Batch 3: 
-    Loss:     0.4320 Accuracy: 0.818605
+    Validation Loss:     0.3308 Accuracy: 0.832558
     Epoch 8, Batch 4: 
-    Loss:     0.4245 Accuracy: 0.813953
+    Validation Loss:     0.2517 Accuracy: 0.888372
+    End of Epoch Losses:
+    Training Loss:     0.0362 Accuracy: 1.000000
+    Validation Loss:     0.2517 Accuracy: 0.888372
     Epoch Number: 9
     Epoch 9, Batch 0: 
-    Loss:     0.3067 Accuracy: 0.851163
+    Validation Loss:     0.3091 Accuracy: 0.865116
     Epoch 9, Batch 1: 
-    Loss:     0.3360 Accuracy: 0.846512
+    Validation Loss:     0.3910 Accuracy: 0.837209
     Epoch 9, Batch 2: 
-    Loss:     0.3654 Accuracy: 0.832558
+    Validation Loss:     0.2853 Accuracy: 0.883721
     Epoch 9, Batch 3: 
-    Loss:     0.3555 Accuracy: 0.841860
+    Validation Loss:     0.2731 Accuracy: 0.906977
     Epoch 9, Batch 4: 
-    Loss:     0.2701 Accuracy: 0.874419
+    Validation Loss:     0.2902 Accuracy: 0.906977
+    End of Epoch Losses:
+    Training Loss:     0.0295 Accuracy: 1.000000
+    Validation Loss:     0.2902 Accuracy: 0.906977
     Epoch Number: 10
     Epoch 10, Batch 0: 
-    Loss:     0.3090 Accuracy: 0.874419
+    Validation Loss:     0.2693 Accuracy: 0.851163
     Epoch 10, Batch 1: 
-    Loss:     0.2658 Accuracy: 0.879070
+    Validation Loss:     0.2574 Accuracy: 0.874419
     Epoch 10, Batch 2: 
-    Loss:     0.3061 Accuracy: 0.865116
+    Validation Loss:     0.3293 Accuracy: 0.846512
     Epoch 10, Batch 3: 
-    Loss:     0.2918 Accuracy: 0.855814
+    Validation Loss:     0.2499 Accuracy: 0.911628
     Epoch 10, Batch 4: 
-    Loss:     0.2521 Accuracy: 0.902326
+    Validation Loss:     0.2383 Accuracy: 0.888372
+    End of Epoch Losses:
+    Training Loss:     0.1146 Accuracy: 1.000000
+    Validation Loss:     0.2383 Accuracy: 0.888372
     Epoch Number: 11
     Epoch 11, Batch 0: 
-    Loss:     0.2526 Accuracy: 0.888372
+    Validation Loss:     0.2297 Accuracy: 0.883721
     Epoch 11, Batch 1: 
-    Loss:     0.2378 Accuracy: 0.869767
+    Validation Loss:     0.3254 Accuracy: 0.851163
     Epoch 11, Batch 2: 
-    Loss:     0.2488 Accuracy: 0.883721
+    Validation Loss:     0.2855 Accuracy: 0.883721
     Epoch 11, Batch 3: 
-    Loss:     0.2381 Accuracy: 0.906977
+    Validation Loss:     0.2523 Accuracy: 0.888372
     Epoch 11, Batch 4: 
-    Loss:     0.2855 Accuracy: 0.893023
+    Validation Loss:     0.2957 Accuracy: 0.893023
+    End of Epoch Losses:
+    Training Loss:     0.0289 Accuracy: 1.000000
+    Validation Loss:     0.2957 Accuracy: 0.893023
     Epoch Number: 12
     Epoch 12, Batch 0: 
-    Loss:     0.2600 Accuracy: 0.869767
+    Validation Loss:     0.2581 Accuracy: 0.879070
     Epoch 12, Batch 1: 
-    Loss:     0.2685 Accuracy: 0.883721
+    Validation Loss:     0.3278 Accuracy: 0.841860
     Epoch 12, Batch 2: 
-    Loss:     0.4552 Accuracy: 0.883721
+    Validation Loss:     0.6724 Accuracy: 0.916279
     Epoch 12, Batch 3: 
-    Loss:     0.3571 Accuracy: 0.865116
+    Validation Loss:     0.2278 Accuracy: 0.883721
     Epoch 12, Batch 4: 
-    Loss:     0.2606 Accuracy: 0.906977
+    Validation Loss:     0.2619 Accuracy: 0.902326
+    End of Epoch Losses:
+    Training Loss:     0.0074 Accuracy: 1.000000
+    Validation Loss:     0.2619 Accuracy: 0.902326
     Epoch Number: 13
     Epoch 13, Batch 0: 
-    Loss:     0.2215 Accuracy: 0.902326
+    Validation Loss:     0.3549 Accuracy: 0.883721
     Epoch 13, Batch 1: 
-    Loss:     0.2849 Accuracy: 0.888372
+    Validation Loss:     0.2802 Accuracy: 0.855814
     Epoch 13, Batch 2: 
-    Loss:     0.2477 Accuracy: 0.888372
+    Validation Loss:     0.2385 Accuracy: 0.893023
     Epoch 13, Batch 3: 
-    Loss:     0.2979 Accuracy: 0.883721
+    Validation Loss:     0.2662 Accuracy: 0.874419
     Epoch 13, Batch 4: 
-    Loss:     0.2587 Accuracy: 0.920930
+    Validation Loss:     0.2808 Accuracy: 0.860465
+    End of Epoch Losses:
+    Training Loss:     0.0399 Accuracy: 1.000000
+    Validation Loss:     0.2808 Accuracy: 0.860465
     Epoch Number: 14
     Epoch 14, Batch 0: 
-    Loss:     0.3781 Accuracy: 0.851163
+    Validation Loss:     0.2393 Accuracy: 0.916279
     Epoch 14, Batch 1: 
-    Loss:     0.2662 Accuracy: 0.888372
+    Validation Loss:     0.3451 Accuracy: 0.860465
     Epoch 14, Batch 2: 
-    Loss:     0.2153 Accuracy: 0.911628
+    Validation Loss:     0.2695 Accuracy: 0.897674
     Epoch 14, Batch 3: 
-    Loss:     0.2298 Accuracy: 0.906977
+    Validation Loss:     0.2694 Accuracy: 0.869767
     Epoch 14, Batch 4: 
-    Loss:     0.2386 Accuracy: 0.916279
+    Validation Loss:     0.3700 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.0035 Accuracy: 1.000000
+    Validation Loss:     0.3700 Accuracy: 0.897674
     Epoch Number: 15
     Epoch 15, Batch 0: 
-    Loss:     0.2622 Accuracy: 0.893023
+    Validation Loss:     0.2846 Accuracy: 0.902326
     Epoch 15, Batch 1: 
-    Loss:     0.2321 Accuracy: 0.906977
+    Validation Loss:     0.2583 Accuracy: 0.893023
     Epoch 15, Batch 2: 
-    Loss:     0.2549 Accuracy: 0.906977
+    Validation Loss:     0.3242 Accuracy: 0.902326
     Epoch 15, Batch 3: 
-    Loss:     0.2087 Accuracy: 0.911628
+    Validation Loss:     0.3851 Accuracy: 0.874419
     Epoch 15, Batch 4: 
-    Loss:     0.3612 Accuracy: 0.865116
+    Validation Loss:     0.2944 Accuracy: 0.879070
+    End of Epoch Losses:
+    Training Loss:     0.0249 Accuracy: 1.000000
+    Validation Loss:     0.2944 Accuracy: 0.879070
     Epoch Number: 16
     Epoch 16, Batch 0: 
-    Loss:     0.2563 Accuracy: 0.874419
+    Validation Loss:     0.2711 Accuracy: 0.897674
     Epoch 16, Batch 1: 
-    Loss:     0.3244 Accuracy: 0.869767
+    Validation Loss:     0.2460 Accuracy: 0.893023
     Epoch 16, Batch 2: 
-    Loss:     0.2397 Accuracy: 0.893023
+    Validation Loss:     0.3184 Accuracy: 0.869767
     Epoch 16, Batch 3: 
-    Loss:     0.2235 Accuracy: 0.925581
+    Validation Loss:     0.3262 Accuracy: 0.879070
     Epoch 16, Batch 4: 
-    Loss:     0.2310 Accuracy: 0.902326
+    Validation Loss:     0.2687 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.0060 Accuracy: 1.000000
+    Validation Loss:     0.2687 Accuracy: 0.897674
     Epoch Number: 17
     Epoch 17, Batch 0: 
-    Loss:     0.2448 Accuracy: 0.911628
+    Validation Loss:     0.3230 Accuracy: 0.874419
     Epoch 17, Batch 1: 
-    Loss:     0.3025 Accuracy: 0.888372
+    Validation Loss:     0.3809 Accuracy: 0.851163
     Epoch 17, Batch 2: 
-    Loss:     0.2331 Accuracy: 0.902326
+    Validation Loss:     0.9343 Accuracy: 0.883721
     Epoch 17, Batch 3: 
-    Loss:     0.2708 Accuracy: 0.893023
+    Validation Loss:     0.2550 Accuracy: 0.883721
     Epoch 17, Batch 4: 
-    Loss:     0.2397 Accuracy: 0.893023
+    Validation Loss:     0.4660 Accuracy: 0.888372
+    End of Epoch Losses:
+    Training Loss:     0.0169 Accuracy: 1.000000
+    Validation Loss:     0.4660 Accuracy: 0.888372
     Epoch Number: 18
     Epoch 18, Batch 0: 
-    Loss:     0.2707 Accuracy: 0.897674
+    Validation Loss:     0.3161 Accuracy: 0.920930
     Epoch 18, Batch 1: 
-    Loss:     0.2685 Accuracy: 0.893023
+    Validation Loss:     0.3053 Accuracy: 0.883721
     Epoch 18, Batch 2: 
-    Loss:     0.2209 Accuracy: 0.916279
+    Validation Loss:     0.3652 Accuracy: 0.906977
     Epoch 18, Batch 3: 
-    Loss:     0.2441 Accuracy: 0.934884
+    Validation Loss:     0.4254 Accuracy: 0.869767
     Epoch 18, Batch 4: 
-    Loss:     0.2657 Accuracy: 0.869767
+    Validation Loss:     0.2626 Accuracy: 0.916279
+    End of Epoch Losses:
+    Training Loss:     0.0402 Accuracy: 1.000000
+    Validation Loss:     0.2626 Accuracy: 0.916279
     Epoch Number: 19
     Epoch 19, Batch 0: 
-    Loss:     0.2566 Accuracy: 0.897674
+    Validation Loss:     0.2506 Accuracy: 0.906977
     Epoch 19, Batch 1: 
-    Loss:     0.3040 Accuracy: 0.897674
+    Validation Loss:     0.4125 Accuracy: 0.888372
     Epoch 19, Batch 2: 
-    Loss:     0.2454 Accuracy: 0.916279
+    Validation Loss:     0.4014 Accuracy: 0.860465
     Epoch 19, Batch 3: 
-    Loss:     0.2251 Accuracy: 0.916279
+    Validation Loss:     0.2696 Accuracy: 0.897674
     Epoch 19, Batch 4: 
-    Loss:     0.2413 Accuracy: 0.911628
+    Validation Loss:     0.2977 Accuracy: 0.893023
+    End of Epoch Losses:
+    Training Loss:     0.1088 Accuracy: 1.000000
+    Validation Loss:     0.2977 Accuracy: 0.893023
     Epoch Number: 20
     Epoch 20, Batch 0: 
-    Loss:     0.3752 Accuracy: 0.865116
+    Validation Loss:     0.2008 Accuracy: 0.925581
     Epoch 20, Batch 1: 
-    Loss:     0.4064 Accuracy: 0.906977
+    Validation Loss:     0.3965 Accuracy: 0.841860
     Epoch 20, Batch 2: 
-    Loss:     0.3179 Accuracy: 0.902326
+    Validation Loss:     0.2113 Accuracy: 0.902326
     Epoch 20, Batch 3: 
-    Loss:     0.3142 Accuracy: 0.860465
+    Validation Loss:     0.3065 Accuracy: 0.851163
     Epoch 20, Batch 4: 
-    Loss:     0.2450 Accuracy: 0.906977
+    Validation Loss:     0.2227 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.0976 Accuracy: 0.888889
+    Validation Loss:     0.2227 Accuracy: 0.897674
     Epoch Number: 21
     Epoch 21, Batch 0: 
-    Loss:     0.3358 Accuracy: 0.874419
+    Validation Loss:     0.1915 Accuracy: 0.906977
     Epoch 21, Batch 1: 
-    Loss:     0.2201 Accuracy: 0.906977
+    Validation Loss:     0.2620 Accuracy: 0.874419
     Epoch 21, Batch 2: 
-    Loss:     0.2332 Accuracy: 0.930233
+    Validation Loss:     0.2771 Accuracy: 0.888372
     Epoch 21, Batch 3: 
-    Loss:     0.2312 Accuracy: 0.888372
+    Validation Loss:     0.4323 Accuracy: 0.855814
     Epoch 21, Batch 4: 
-    Loss:     0.3021 Accuracy: 0.897674
+    Validation Loss:     0.2896 Accuracy: 0.883721
+    End of Epoch Losses:
+    Training Loss:     0.0850 Accuracy: 1.000000
+    Validation Loss:     0.2896 Accuracy: 0.883721
     Epoch Number: 22
     Epoch 22, Batch 0: 
-    Loss:     0.2453 Accuracy: 0.897674
+    Validation Loss:     0.2470 Accuracy: 0.906977
     Epoch 22, Batch 1: 
-    Loss:     0.1922 Accuracy: 0.934884
+    Validation Loss:     0.2542 Accuracy: 0.902326
     Epoch 22, Batch 2: 
-    Loss:     0.1954 Accuracy: 0.934884
+    Validation Loss:     0.1984 Accuracy: 0.934884
     Epoch 22, Batch 3: 
-    Loss:     0.2187 Accuracy: 0.944186
+    Validation Loss:     0.1856 Accuracy: 0.930233
     Epoch 22, Batch 4: 
-    Loss:     0.3704 Accuracy: 0.874419
+    Validation Loss:     0.2021 Accuracy: 0.934884
+    End of Epoch Losses:
+    Training Loss:     0.0128 Accuracy: 1.000000
+    Validation Loss:     0.2021 Accuracy: 0.934884
     Epoch Number: 23
     Epoch 23, Batch 0: 
-    Loss:     0.7545 Accuracy: 0.883721
+    Validation Loss:     0.1751 Accuracy: 0.930233
     Epoch 23, Batch 1: 
-    Loss:     0.3112 Accuracy: 0.851163
+    Validation Loss:     0.1720 Accuracy: 0.916279
     Epoch 23, Batch 2: 
-    Loss:     0.2281 Accuracy: 0.925581
+    Validation Loss:     0.1959 Accuracy: 0.925581
     Epoch 23, Batch 3: 
-    Loss:     0.3374 Accuracy: 0.934884
+    Validation Loss:     0.1854 Accuracy: 0.930233
     Epoch 23, Batch 4: 
-    Loss:     0.2202 Accuracy: 0.888372
+    Validation Loss:     0.2155 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0115 Accuracy: 1.000000
+    Validation Loss:     0.2155 Accuracy: 0.948837
     Epoch Number: 24
     Epoch 24, Batch 0: 
-    Loss:     0.2792 Accuracy: 0.911628
+    Validation Loss:     0.1967 Accuracy: 0.934884
     Epoch 24, Batch 1: 
-    Loss:     0.3020 Accuracy: 0.897674
+    Validation Loss:     0.3876 Accuracy: 0.920930
     Epoch 24, Batch 2: 
-    Loss:     0.2552 Accuracy: 0.944186
+    Validation Loss:     0.2593 Accuracy: 0.934884
     Epoch 24, Batch 3: 
-    Loss:     0.2982 Accuracy: 0.911628
+    Validation Loss:     0.2901 Accuracy: 0.897674
     Epoch 24, Batch 4: 
-    Loss:     0.3849 Accuracy: 0.888372
+    Validation Loss:     0.2763 Accuracy: 0.925581
+    End of Epoch Losses:
+    Training Loss:     0.0006 Accuracy: 1.000000
+    Validation Loss:     0.2763 Accuracy: 0.925581
     Epoch Number: 25
     Epoch 25, Batch 0: 
-    Loss:     0.3182 Accuracy: 0.902326
+    Validation Loss:     0.5770 Accuracy: 0.576744
     Epoch 25, Batch 1: 
-    Loss:     0.4059 Accuracy: 0.902326
+    Validation Loss:     0.5974 Accuracy: 0.632558
     Epoch 25, Batch 2: 
-    Loss:     0.3054 Accuracy: 0.925581
+    Validation Loss:     0.4828 Accuracy: 0.786047
     Epoch 25, Batch 3: 
-    Loss:     0.2552 Accuracy: 0.897674
+    Validation Loss:     0.5097 Accuracy: 0.744186
     Epoch 25, Batch 4: 
-    Loss:     0.2913 Accuracy: 0.911628
+    Validation Loss:     0.3953 Accuracy: 0.832558
+    End of Epoch Losses:
+    Training Loss:     0.3078 Accuracy: 0.888889
+    Validation Loss:     0.3953 Accuracy: 0.832558
     Epoch Number: 26
     Epoch 26, Batch 0: 
-    Loss:     0.2402 Accuracy: 0.902326
+    Validation Loss:     0.4130 Accuracy: 0.827907
     Epoch 26, Batch 1: 
-    Loss:     0.2726 Accuracy: 0.916279
+    Validation Loss:     0.3406 Accuracy: 0.869767
     Epoch 26, Batch 2: 
-    Loss:     0.2459 Accuracy: 0.911628
+    Validation Loss:     0.2787 Accuracy: 0.874419
     Epoch 26, Batch 3: 
-    Loss:     0.3474 Accuracy: 0.920930
+    Validation Loss:     0.3423 Accuracy: 0.837209
     Epoch 26, Batch 4: 
-    Loss:     0.3827 Accuracy: 0.897674
+    Validation Loss:     0.2519 Accuracy: 0.855814
+    End of Epoch Losses:
+    Training Loss:     0.1489 Accuracy: 1.000000
+    Validation Loss:     0.2519 Accuracy: 0.855814
     Epoch Number: 27
     Epoch 27, Batch 0: 
-    Loss:     0.4583 Accuracy: 0.846512
+    Validation Loss:     0.2327 Accuracy: 0.879070
     Epoch 27, Batch 1: 
-    Loss:     0.3169 Accuracy: 0.925581
+    Validation Loss:     0.2847 Accuracy: 0.874419
     Epoch 27, Batch 2: 
-    Loss:     0.1770 Accuracy: 0.916279
+    Validation Loss:     0.2761 Accuracy: 0.879070
     Epoch 27, Batch 3: 
-    Loss:     0.4149 Accuracy: 0.916279
+    Validation Loss:     0.3716 Accuracy: 0.855814
     Epoch 27, Batch 4: 
-    Loss:     0.2469 Accuracy: 0.911628
+    Validation Loss:     0.2600 Accuracy: 0.855814
+    End of Epoch Losses:
+    Training Loss:     0.1775 Accuracy: 1.000000
+    Validation Loss:     0.2600 Accuracy: 0.855814
     Epoch Number: 28
     Epoch 28, Batch 0: 
-    Loss:     0.3696 Accuracy: 0.911628
+    Validation Loss:     0.2678 Accuracy: 0.883721
     Epoch 28, Batch 1: 
-    Loss:     0.2879 Accuracy: 0.906977
+    Validation Loss:     0.2174 Accuracy: 0.902326
     Epoch 28, Batch 2: 
-    Loss:     0.3327 Accuracy: 0.930233
+    Validation Loss:     0.2473 Accuracy: 0.897674
     Epoch 28, Batch 3: 
-    Loss:     0.2654 Accuracy: 0.920930
+    Validation Loss:     0.2073 Accuracy: 0.902326
     Epoch 28, Batch 4: 
-    Loss:     0.2968 Accuracy: 0.939535
+    Validation Loss:     0.1896 Accuracy: 0.906977
+    End of Epoch Losses:
+    Training Loss:     0.0316 Accuracy: 1.000000
+    Validation Loss:     0.1896 Accuracy: 0.906977
     Epoch Number: 29
     Epoch 29, Batch 0: 
-    Loss:     0.2039 Accuracy: 0.944186
+    Validation Loss:     0.2046 Accuracy: 0.897674
     Epoch 29, Batch 1: 
-    Loss:     0.1878 Accuracy: 0.925581
+    Validation Loss:     0.2005 Accuracy: 0.911628
     Epoch 29, Batch 2: 
-    Loss:     0.1798 Accuracy: 0.948837
+    Validation Loss:     0.2397 Accuracy: 0.920930
     Epoch 29, Batch 3: 
-    Loss:     0.3496 Accuracy: 0.944186
+    Validation Loss:     0.3517 Accuracy: 0.841860
     Epoch 29, Batch 4: 
-    Loss:     0.3034 Accuracy: 0.902326
+    Validation Loss:     0.2288 Accuracy: 0.893023
+    End of Epoch Losses:
+    Training Loss:     0.0511 Accuracy: 1.000000
+    Validation Loss:     0.2288 Accuracy: 0.893023
     Epoch Number: 30
     Epoch 30, Batch 0: 
-    Loss:     0.2745 Accuracy: 0.930233
+    Validation Loss:     0.2086 Accuracy: 0.920930
     Epoch 30, Batch 1: 
-    Loss:     0.2296 Accuracy: 0.930233
+    Validation Loss:     0.1860 Accuracy: 0.916279
     Epoch 30, Batch 2: 
-    Loss:     0.1637 Accuracy: 0.948837
+    Validation Loss:     0.1539 Accuracy: 0.934884
     Epoch 30, Batch 3: 
-    Loss:     0.2211 Accuracy: 0.948837
+    Validation Loss:     0.1935 Accuracy: 0.911628
     Epoch 30, Batch 4: 
-    Loss:     0.2207 Accuracy: 0.948837
+    Validation Loss:     0.1870 Accuracy: 0.920930
+    End of Epoch Losses:
+    Training Loss:     0.0382 Accuracy: 1.000000
+    Validation Loss:     0.1870 Accuracy: 0.920930
     Epoch Number: 31
     Epoch 31, Batch 0: 
-    Loss:     0.2539 Accuracy: 0.916279
+    Validation Loss:     0.2123 Accuracy: 0.902326
     Epoch 31, Batch 1: 
-    Loss:     0.2309 Accuracy: 0.911628
+    Validation Loss:     0.2019 Accuracy: 0.916279
     Epoch 31, Batch 2: 
-    Loss:     0.1960 Accuracy: 0.930233
+    Validation Loss:     0.2313 Accuracy: 0.911628
     Epoch 31, Batch 3: 
-    Loss:     0.1660 Accuracy: 0.953488
+    Validation Loss:     0.2058 Accuracy: 0.906977
     Epoch 31, Batch 4: 
-    Loss:     0.2020 Accuracy: 0.934884
+    Validation Loss:     0.2111 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.1006 Accuracy: 1.000000
+    Validation Loss:     0.2111 Accuracy: 0.897674
     Epoch Number: 32
     Epoch 32, Batch 0: 
-    Loss:     0.2588 Accuracy: 0.944186
+    Validation Loss:     0.1791 Accuracy: 0.930233
     Epoch 32, Batch 1: 
-    Loss:     0.3699 Accuracy: 0.934884
+    Validation Loss:     0.1789 Accuracy: 0.930233
     Epoch 32, Batch 2: 
-    Loss:     0.2672 Accuracy: 0.953488
+    Validation Loss:     0.1455 Accuracy: 0.944186
     Epoch 32, Batch 3: 
-    Loss:     0.3084 Accuracy: 0.958140
+    Validation Loss:     0.1643 Accuracy: 0.939535
     Epoch 32, Batch 4: 
-    Loss:     0.4670 Accuracy: 0.893023
+    Validation Loss:     0.1813 Accuracy: 0.920930
+    End of Epoch Losses:
+    Training Loss:     0.1141 Accuracy: 0.888889
+    Validation Loss:     0.1813 Accuracy: 0.920930
     Epoch Number: 33
     Epoch 33, Batch 0: 
-    Loss:     2.3302 Accuracy: 0.832558
+    Validation Loss:     0.1372 Accuracy: 0.948837
     Epoch 33, Batch 1: 
-    Loss:     0.5536 Accuracy: 0.702326
+    Validation Loss:     0.1147 Accuracy: 0.962791
     Epoch 33, Batch 2: 
-    Loss:     0.5205 Accuracy: 0.711628
+    Validation Loss:     0.1202 Accuracy: 0.958140
     Epoch 33, Batch 3: 
-    Loss:     0.5239 Accuracy: 0.706977
+    Validation Loss:     0.3337 Accuracy: 0.888372
     Epoch 33, Batch 4: 
-    Loss:     0.4649 Accuracy: 0.776744
+    Validation Loss:     0.1593 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0635 Accuracy: 1.000000
+    Validation Loss:     0.1593 Accuracy: 0.930233
     Epoch Number: 34
     Epoch 34, Batch 0: 
-    Loss:     0.4516 Accuracy: 0.772093
+    Validation Loss:     0.1287 Accuracy: 0.939535
     Epoch 34, Batch 1: 
-    Loss:     0.4279 Accuracy: 0.786047
+    Validation Loss:     0.1403 Accuracy: 0.944186
     Epoch 34, Batch 2: 
-    Loss:     0.3886 Accuracy: 0.837209
+    Validation Loss:     0.1510 Accuracy: 0.930233
     Epoch 34, Batch 3: 
-    Loss:     0.3157 Accuracy: 0.855814
+    Validation Loss:     0.1940 Accuracy: 0.925581
     Epoch 34, Batch 4: 
-    Loss:     0.2706 Accuracy: 0.888372
+    Validation Loss:     0.1550 Accuracy: 0.939535
+    End of Epoch Losses:
+    Training Loss:     0.0157 Accuracy: 1.000000
+    Validation Loss:     0.1550 Accuracy: 0.939535
     Epoch Number: 35
     Epoch 35, Batch 0: 
-    Loss:     0.3596 Accuracy: 0.888372
+    Validation Loss:     0.1705 Accuracy: 0.948837
     Epoch 35, Batch 1: 
-    Loss:     0.2702 Accuracy: 0.902326
+    Validation Loss:     0.1642 Accuracy: 0.948837
     Epoch 35, Batch 2: 
-    Loss:     0.2357 Accuracy: 0.930233
+    Validation Loss:     0.1582 Accuracy: 0.948837
     Epoch 35, Batch 3: 
-    Loss:     0.3069 Accuracy: 0.920930
+    Validation Loss:     0.1143 Accuracy: 0.948837
     Epoch 35, Batch 4: 
-    Loss:     0.2663 Accuracy: 0.953488
+    Validation Loss:     0.5154 Accuracy: 0.893023
+    End of Epoch Losses:
+    Training Loss:     0.0302 Accuracy: 1.000000
+    Validation Loss:     0.5154 Accuracy: 0.893023
     Epoch Number: 36
     Epoch 36, Batch 0: 
-    Loss:     0.3707 Accuracy: 0.911628
+    Validation Loss:     0.4219 Accuracy: 0.846512
     Epoch 36, Batch 1: 
-    Loss:     0.3556 Accuracy: 0.934884
+    Validation Loss:     0.2336 Accuracy: 0.906977
     Epoch 36, Batch 2: 
-    Loss:     0.3403 Accuracy: 0.920930
+    Validation Loss:     0.3075 Accuracy: 0.934884
     Epoch 36, Batch 3: 
-    Loss:     0.3379 Accuracy: 0.916279
+    Validation Loss:     0.1685 Accuracy: 0.920930
     Epoch 36, Batch 4: 
-    Loss:     0.4710 Accuracy: 0.911628
+    Validation Loss:     0.3214 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.0371 Accuracy: 1.000000
+    Validation Loss:     0.3214 Accuracy: 0.897674
     Epoch Number: 37
     Epoch 37, Batch 0: 
-    Loss:     0.3905 Accuracy: 0.930233
+    Validation Loss:     0.1351 Accuracy: 0.920930
     Epoch 37, Batch 1: 
-    Loss:     0.5770 Accuracy: 0.860465
+    Validation Loss:     0.1682 Accuracy: 0.930233
     Epoch 37, Batch 2: 
-    Loss:     0.2415 Accuracy: 0.939535
+    Validation Loss:     0.2190 Accuracy: 0.939535
     Epoch 37, Batch 3: 
-    Loss:     0.2485 Accuracy: 0.948837
+    Validation Loss:     0.1982 Accuracy: 0.925581
     Epoch 37, Batch 4: 
-    Loss:     0.2794 Accuracy: 0.939535
+    Validation Loss:     0.1729 Accuracy: 0.911628
+    End of Epoch Losses:
+    Training Loss:     0.0528 Accuracy: 1.000000
+    Validation Loss:     0.1729 Accuracy: 0.911628
     Epoch Number: 38
     Epoch 38, Batch 0: 
-    Loss:     0.3799 Accuracy: 0.911628
+    Validation Loss:     0.1694 Accuracy: 0.906977
     Epoch 38, Batch 1: 
-    Loss:     0.2574 Accuracy: 0.939535
+    Validation Loss:     0.2100 Accuracy: 0.906977
     Epoch 38, Batch 2: 
-    Loss:     0.2528 Accuracy: 0.934884
+    Validation Loss:     0.2309 Accuracy: 0.930233
     Epoch 38, Batch 3: 
-    Loss:     0.1997 Accuracy: 0.962791
+    Validation Loss:     0.1841 Accuracy: 0.920930
     Epoch 38, Batch 4: 
-    Loss:     0.2515 Accuracy: 0.944186
+    Validation Loss:     0.2159 Accuracy: 0.911628
+    End of Epoch Losses:
+    Training Loss:     0.0421 Accuracy: 1.000000
+    Validation Loss:     0.2159 Accuracy: 0.911628
     Epoch Number: 39
     Epoch 39, Batch 0: 
-    Loss:     0.3510 Accuracy: 0.916279
+    Validation Loss:     0.2167 Accuracy: 0.911628
     Epoch 39, Batch 1: 
-    Loss:     0.2926 Accuracy: 0.930233
+    Validation Loss:     0.3453 Accuracy: 0.916279
     Epoch 39, Batch 2: 
-    Loss:     0.2098 Accuracy: 0.934884
+    Validation Loss:     0.2431 Accuracy: 0.925581
     Epoch 39, Batch 3: 
-    Loss:     0.2298 Accuracy: 0.925581
+    Validation Loss:     0.1486 Accuracy: 0.934884
     Epoch 39, Batch 4: 
-    Loss:     0.2227 Accuracy: 0.934884
+    Validation Loss:     0.1478 Accuracy: 0.953488
+    End of Epoch Losses:
+    Training Loss:     0.0108 Accuracy: 1.000000
+    Validation Loss:     0.1478 Accuracy: 0.953488
     Epoch Number: 40
     Epoch 40, Batch 0: 
-    Loss:     0.2941 Accuracy: 0.925581
+    Validation Loss:     0.1644 Accuracy: 0.925581
     Epoch 40, Batch 1: 
-    Loss:     0.2550 Accuracy: 0.939535
+    Validation Loss:     0.5261 Accuracy: 0.911628
     Epoch 40, Batch 2: 
-    Loss:     0.1914 Accuracy: 0.934884
+    Validation Loss:     0.3216 Accuracy: 0.939535
     Epoch 40, Batch 3: 
-    Loss:     0.2208 Accuracy: 0.958140
+    Validation Loss:     0.1863 Accuracy: 0.930233
     Epoch 40, Batch 4: 
-    Loss:     0.2569 Accuracy: 0.948837
+    Validation Loss:     0.2500 Accuracy: 0.911628
+    End of Epoch Losses:
+    Training Loss:     0.0256 Accuracy: 1.000000
+    Validation Loss:     0.2500 Accuracy: 0.911628
     Epoch Number: 41
     Epoch 41, Batch 0: 
-    Loss:     0.3169 Accuracy: 0.902326
+    Validation Loss:     0.1460 Accuracy: 0.934884
     Epoch 41, Batch 1: 
-    Loss:     0.3237 Accuracy: 0.925581
+    Validation Loss:     0.1582 Accuracy: 0.930233
     Epoch 41, Batch 2: 
-    Loss:     0.4862 Accuracy: 0.920930
+    Validation Loss:     0.1957 Accuracy: 0.934884
     Epoch 41, Batch 3: 
-    Loss:     0.2128 Accuracy: 0.925581
+    Validation Loss:     0.2469 Accuracy: 0.925581
     Epoch 41, Batch 4: 
-    Loss:     0.1582 Accuracy: 0.958140
+    Validation Loss:     0.1680 Accuracy: 0.934884
+    End of Epoch Losses:
+    Training Loss:     0.0253 Accuracy: 1.000000
+    Validation Loss:     0.1680 Accuracy: 0.934884
     Epoch Number: 42
     Epoch 42, Batch 0: 
-    Loss:     0.1703 Accuracy: 0.953488
+    Validation Loss:     0.1963 Accuracy: 0.934884
     Epoch 42, Batch 1: 
-    Loss:     0.1983 Accuracy: 0.953488
+    Validation Loss:     0.1842 Accuracy: 0.930233
     Epoch 42, Batch 2: 
-    Loss:     0.2045 Accuracy: 0.939535
+    Validation Loss:     0.1307 Accuracy: 0.944186
     Epoch 42, Batch 3: 
-    Loss:     0.2302 Accuracy: 0.925581
+    Validation Loss:     0.1840 Accuracy: 0.939535
     Epoch 42, Batch 4: 
-    Loss:     0.1981 Accuracy: 0.930233
+    Validation Loss:     0.2047 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0014 Accuracy: 1.000000
+    Validation Loss:     0.2047 Accuracy: 0.930233
     Epoch Number: 43
     Epoch 43, Batch 0: 
-    Loss:     0.2726 Accuracy: 0.930233
+    Validation Loss:     0.2160 Accuracy: 0.934884
     Epoch 43, Batch 1: 
-    Loss:     0.2631 Accuracy: 0.948837
+    Validation Loss:     0.3234 Accuracy: 0.930233
     Epoch 43, Batch 2: 
-    Loss:     0.2505 Accuracy: 0.939535
+    Validation Loss:     0.1650 Accuracy: 0.948837
     Epoch 43, Batch 3: 
-    Loss:     0.2325 Accuracy: 0.953488
+    Validation Loss:     0.2162 Accuracy: 0.934884
     Epoch 43, Batch 4: 
-    Loss:     0.3075 Accuracy: 0.911628
+    Validation Loss:     0.4281 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.0019 Accuracy: 1.000000
+    Validation Loss:     0.4281 Accuracy: 0.897674
     Epoch Number: 44
     Epoch 44, Batch 0: 
-    Loss:     0.3368 Accuracy: 0.916279
+    Validation Loss:     0.3481 Accuracy: 0.883721
     Epoch 44, Batch 1: 
-    Loss:     0.2411 Accuracy: 0.930233
+    Validation Loss:     0.1850 Accuracy: 0.925581
     Epoch 44, Batch 2: 
-    Loss:     0.3628 Accuracy: 0.939535
+    Validation Loss:     0.1735 Accuracy: 0.925581
     Epoch 44, Batch 3: 
-    Loss:     0.2218 Accuracy: 0.934884
+    Validation Loss:     0.2686 Accuracy: 0.902326
     Epoch 44, Batch 4: 
-    Loss:     0.1932 Accuracy: 0.944186
+    Validation Loss:     0.1450 Accuracy: 0.939535
+    End of Epoch Losses:
+    Training Loss:     0.0569 Accuracy: 1.000000
+    Validation Loss:     0.1450 Accuracy: 0.939535
     Epoch Number: 45
     Epoch 45, Batch 0: 
-    Loss:     0.1429 Accuracy: 0.958140
+    Validation Loss:     0.1524 Accuracy: 0.934884
     Epoch 45, Batch 1: 
-    Loss:     0.2420 Accuracy: 0.939535
+    Validation Loss:     0.1206 Accuracy: 0.948837
     Epoch 45, Batch 2: 
-    Loss:     0.4523 Accuracy: 0.911628
+    Validation Loss:     0.1273 Accuracy: 0.948837
     Epoch 45, Batch 3: 
-    Loss:     0.2500 Accuracy: 0.958140
+    Validation Loss:     0.1466 Accuracy: 0.953488
     Epoch 45, Batch 4: 
-    Loss:     0.4512 Accuracy: 0.916279
+    Validation Loss:     0.1264 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0131 Accuracy: 1.000000
+    Validation Loss:     0.1264 Accuracy: 0.948837
     Epoch Number: 46
     Epoch 46, Batch 0: 
-    Loss:     0.6088 Accuracy: 0.841860
+    Validation Loss:     0.1283 Accuracy: 0.948837
     Epoch 46, Batch 1: 
-    Loss:     0.2631 Accuracy: 0.953488
+    Validation Loss:     0.1396 Accuracy: 0.939535
     Epoch 46, Batch 2: 
-    Loss:     0.2107 Accuracy: 0.958140
+    Validation Loss:     0.1541 Accuracy: 0.948837
     Epoch 46, Batch 3: 
-    Loss:     0.2349 Accuracy: 0.934884
+    Validation Loss:     0.1287 Accuracy: 0.944186
     Epoch 46, Batch 4: 
-    Loss:     0.2344 Accuracy: 0.953488
+    Validation Loss:     0.1591 Accuracy: 0.939535
+    End of Epoch Losses:
+    Training Loss:     0.0099 Accuracy: 1.000000
+    Validation Loss:     0.1591 Accuracy: 0.939535
     Epoch Number: 47
     Epoch 47, Batch 0: 
-    Loss:     0.2173 Accuracy: 0.958140
+    Validation Loss:     0.1911 Accuracy: 0.944186
     Epoch 47, Batch 1: 
-    Loss:     0.2190 Accuracy: 0.953488
+    Validation Loss:     0.1808 Accuracy: 0.925581
     Epoch 47, Batch 2: 
-    Loss:     0.1830 Accuracy: 0.944186
+    Validation Loss:     0.1857 Accuracy: 0.925581
     Epoch 47, Batch 3: 
-    Loss:     0.2256 Accuracy: 0.953488
+    Validation Loss:     0.1822 Accuracy: 0.948837
     Epoch 47, Batch 4: 
-    Loss:     0.2833 Accuracy: 0.939535
+    Validation Loss:     0.8206 Accuracy: 0.879070
+    End of Epoch Losses:
+    Training Loss:     0.0588 Accuracy: 1.000000
+    Validation Loss:     0.8206 Accuracy: 0.879070
     Epoch Number: 48
     Epoch 48, Batch 0: 
-    Loss:     0.1778 Accuracy: 0.953488
+    Validation Loss:     0.2282 Accuracy: 0.925581
     Epoch 48, Batch 1: 
-    Loss:     0.1340 Accuracy: 0.962791
+    Validation Loss:     0.2478 Accuracy: 0.911628
     Epoch 48, Batch 2: 
-    Loss:     0.1449 Accuracy: 0.962791
+    Validation Loss:     0.2303 Accuracy: 0.911628
     Epoch 48, Batch 3: 
-    Loss:     0.2180 Accuracy: 0.953488
+    Validation Loss:     0.2412 Accuracy: 0.920930
     Epoch 48, Batch 4: 
-    Loss:     0.3785 Accuracy: 0.934884
+    Validation Loss:     0.3139 Accuracy: 0.897674
+    End of Epoch Losses:
+    Training Loss:     0.0020 Accuracy: 1.000000
+    Validation Loss:     0.3139 Accuracy: 0.897674
     Epoch Number: 49
     Epoch 49, Batch 0: 
-    Loss:     0.2368 Accuracy: 0.944186
+    Validation Loss:     0.4766 Accuracy: 0.874419
     Epoch 49, Batch 1: 
-    Loss:     0.2491 Accuracy: 0.953488
+    Validation Loss:     0.3667 Accuracy: 0.911628
     Epoch 49, Batch 2: 
-    Loss:     0.1399 Accuracy: 0.934884
+    Validation Loss:     0.1776 Accuracy: 0.930233
     Epoch 49, Batch 3: 
-    Loss:     0.2133 Accuracy: 0.944186
+    Validation Loss:     0.2069 Accuracy: 0.911628
     Epoch 49, Batch 4: 
-    Loss:     0.1558 Accuracy: 0.944186
+    Validation Loss:     0.1992 Accuracy: 0.925581
+    End of Epoch Losses:
+    Training Loss:     0.0067 Accuracy: 1.000000
+    Validation Loss:     0.1992 Accuracy: 0.925581
     Epoch Number: 50
     Epoch 50, Batch 0: 
-    Loss:     0.1980 Accuracy: 0.944186
+    Validation Loss:     0.2001 Accuracy: 0.925581
     Epoch 50, Batch 1: 
-    Loss:     0.1844 Accuracy: 0.948837
+    Validation Loss:     0.2098 Accuracy: 0.920930
     Epoch 50, Batch 2: 
-    Loss:     0.2020 Accuracy: 0.948837
+    Validation Loss:     0.1770 Accuracy: 0.948837
     Epoch 50, Batch 3: 
-    Loss:     0.4052 Accuracy: 0.902326
+    Validation Loss:     0.1613 Accuracy: 0.953488
     Epoch 50, Batch 4: 
-    Loss:     0.3898 Accuracy: 0.809302
+    Validation Loss:     0.2983 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0016 Accuracy: 1.000000
+    Validation Loss:     0.2983 Accuracy: 0.930233
     Epoch Number: 51
     Epoch 51, Batch 0: 
-    Loss:     0.6018 Accuracy: 0.800000
+    Validation Loss:     0.2181 Accuracy: 0.958140
     Epoch 51, Batch 1: 
-    Loss:     0.4207 Accuracy: 0.869767
+    Validation Loss:     0.3204 Accuracy: 0.939535
     Epoch 51, Batch 2: 
-    Loss:     0.2397 Accuracy: 0.883721
+    Validation Loss:     0.2184 Accuracy: 0.944186
     Epoch 51, Batch 3: 
-    Loss:     0.3317 Accuracy: 0.897674
+    Validation Loss:     0.1209 Accuracy: 0.953488
     Epoch 51, Batch 4: 
-    Loss:     0.2998 Accuracy: 0.888372
+    Validation Loss:     0.1562 Accuracy: 0.944186
+    End of Epoch Losses:
+    Training Loss:     0.0039 Accuracy: 1.000000
+    Validation Loss:     0.1562 Accuracy: 0.944186
     Epoch Number: 52
     Epoch 52, Batch 0: 
-    Loss:     0.2112 Accuracy: 0.916279
+    Validation Loss:     0.3120 Accuracy: 0.911628
     Epoch 52, Batch 1: 
-    Loss:     0.3054 Accuracy: 0.893023
+    Validation Loss:     0.1864 Accuracy: 0.934884
     Epoch 52, Batch 2: 
-    Loss:     0.1961 Accuracy: 0.920930
+    Validation Loss:     0.2176 Accuracy: 0.934884
     Epoch 52, Batch 3: 
-    Loss:     0.2663 Accuracy: 0.911628
+    Validation Loss:     0.3257 Accuracy: 0.911628
     Epoch 52, Batch 4: 
-    Loss:     0.2870 Accuracy: 0.925581
+    Validation Loss:     0.2339 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0013 Accuracy: 1.000000
+    Validation Loss:     0.2339 Accuracy: 0.930233
     Epoch Number: 53
     Epoch 53, Batch 0: 
-    Loss:     0.2508 Accuracy: 0.934884
+    Validation Loss:     0.2763 Accuracy: 0.930233
     Epoch 53, Batch 1: 
-    Loss:     0.2463 Accuracy: 0.925581
+    Validation Loss:     0.2558 Accuracy: 0.920930
     Epoch 53, Batch 2: 
-    Loss:     0.2467 Accuracy: 0.944186
+    Validation Loss:     0.2812 Accuracy: 0.939535
     Epoch 53, Batch 3: 
-    Loss:     0.2414 Accuracy: 0.916279
+    Validation Loss:     0.3948 Accuracy: 0.916279
     Epoch 53, Batch 4: 
-    Loss:     0.4022 Accuracy: 0.939535
+    Validation Loss:     0.2280 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0021 Accuracy: 1.000000
+    Validation Loss:     0.2280 Accuracy: 0.930233
     Epoch Number: 54
     Epoch 54, Batch 0: 
-    Loss:     0.2510 Accuracy: 0.944186
+    Validation Loss:     0.2695 Accuracy: 0.934884
     Epoch 54, Batch 1: 
-    Loss:     0.1928 Accuracy: 0.934884
+    Validation Loss:     0.1491 Accuracy: 0.962791
     Epoch 54, Batch 2: 
-    Loss:     0.3784 Accuracy: 0.911628
+    Validation Loss:     0.1852 Accuracy: 0.953488
     Epoch 54, Batch 3: 
-    Loss:     0.3736 Accuracy: 0.897674
+    Validation Loss:     0.2418 Accuracy: 0.930233
     Epoch 54, Batch 4: 
-    Loss:     0.3613 Accuracy: 0.953488
+    Validation Loss:     0.4121 Accuracy: 0.916279
+    End of Epoch Losses:
+    Training Loss:     0.0007 Accuracy: 1.000000
+    Validation Loss:     0.4121 Accuracy: 0.916279
     Epoch Number: 55
     Epoch 55, Batch 0: 
-    Loss:     0.4541 Accuracy: 0.934884
+    Validation Loss:     0.1806 Accuracy: 0.948837
     Epoch 55, Batch 1: 
-    Loss:     0.2323 Accuracy: 0.934884
+    Validation Loss:     0.2332 Accuracy: 0.939535
     Epoch 55, Batch 2: 
-    Loss:     0.2362 Accuracy: 0.948837
+    Validation Loss:     0.2430 Accuracy: 0.934884
     Epoch 55, Batch 3: 
-    Loss:     0.3191 Accuracy: 0.920930
+    Validation Loss:     0.2938 Accuracy: 0.930233
     Epoch 55, Batch 4: 
-    Loss:     0.3481 Accuracy: 0.939535
+    Validation Loss:     0.3419 Accuracy: 0.925581
+    End of Epoch Losses:
+    Training Loss:     0.0017 Accuracy: 1.000000
+    Validation Loss:     0.3419 Accuracy: 0.925581
     Epoch Number: 56
     Epoch 56, Batch 0: 
-    Loss:     0.8660 Accuracy: 0.888372
+    Validation Loss:     0.1932 Accuracy: 0.953488
     Epoch 56, Batch 1: 
-    Loss:     0.2202 Accuracy: 0.934884
+    Validation Loss:     0.2108 Accuracy: 0.962791
     Epoch 56, Batch 2: 
-    Loss:     0.1693 Accuracy: 0.930233
+    Validation Loss:     0.2119 Accuracy: 0.958140
     Epoch 56, Batch 3: 
-    Loss:     0.6013 Accuracy: 0.916279
+    Validation Loss:     0.3071 Accuracy: 0.934884
     Epoch 56, Batch 4: 
-    Loss:     0.2169 Accuracy: 0.930233
+    Validation Loss:     0.3241 Accuracy: 0.934884
+    End of Epoch Losses:
+    Training Loss:     0.0004 Accuracy: 1.000000
+    Validation Loss:     0.3241 Accuracy: 0.934884
     Epoch Number: 57
     Epoch 57, Batch 0: 
-    Loss:     0.2485 Accuracy: 0.948837
+    Validation Loss:     0.1815 Accuracy: 0.962791
     Epoch 57, Batch 1: 
-    Loss:     0.2368 Accuracy: 0.962791
+    Validation Loss:     0.3338 Accuracy: 0.930233
     Epoch 57, Batch 2: 
-    Loss:     0.3511 Accuracy: 0.958140
+    Validation Loss:     0.4076 Accuracy: 0.930233
     Epoch 57, Batch 3: 
-    Loss:     0.2719 Accuracy: 0.930233
+    Validation Loss:     0.3184 Accuracy: 0.944186
     Epoch 57, Batch 4: 
-    Loss:     0.3863 Accuracy: 0.953488
+    Validation Loss:     0.3942 Accuracy: 0.934884
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.3942 Accuracy: 0.934884
     Epoch Number: 58
     Epoch 58, Batch 0: 
-    Loss:     0.3608 Accuracy: 0.944186
+    Validation Loss:     0.3338 Accuracy: 0.958140
     Epoch 58, Batch 1: 
-    Loss:     0.2896 Accuracy: 0.948837
+    Validation Loss:     0.2975 Accuracy: 0.948837
     Epoch 58, Batch 2: 
-    Loss:     0.2592 Accuracy: 0.953488
+    Validation Loss:     0.3180 Accuracy: 0.939535
     Epoch 58, Batch 3: 
-    Loss:     0.3868 Accuracy: 0.948837
+    Validation Loss:     0.3706 Accuracy: 0.944186
     Epoch 58, Batch 4: 
-    Loss:     0.4212 Accuracy: 0.953488
+    Validation Loss:     1.3708 Accuracy: 0.911628
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     1.3708 Accuracy: 0.911628
     Epoch Number: 59
     Epoch 59, Batch 0: 
-    Loss:     0.3768 Accuracy: 0.930233
+    Validation Loss:     0.2152 Accuracy: 0.948837
     Epoch 59, Batch 1: 
-    Loss:     0.4117 Accuracy: 0.939535
+    Validation Loss:     0.2857 Accuracy: 0.930233
     Epoch 59, Batch 2: 
-    Loss:     0.3371 Accuracy: 0.944186
+    Validation Loss:     0.2690 Accuracy: 0.939535
     Epoch 59, Batch 3: 
-    Loss:     0.3110 Accuracy: 0.962791
+    Validation Loss:     0.1611 Accuracy: 0.948837
     Epoch 59, Batch 4: 
-    Loss:     0.3508 Accuracy: 0.944186
+    Validation Loss:     0.2666 Accuracy: 0.944186
+    End of Epoch Losses:
+    Training Loss:     0.0002 Accuracy: 1.000000
+    Validation Loss:     0.2666 Accuracy: 0.944186
     Epoch Number: 60
     Epoch 60, Batch 0: 
-    Loss:     0.3979 Accuracy: 0.930233
+    Validation Loss:     0.3348 Accuracy: 0.939535
     Epoch 60, Batch 1: 
-    Loss:     0.3293 Accuracy: 0.953488
+    Validation Loss:     0.1719 Accuracy: 0.962791
     Epoch 60, Batch 2: 
-    Loss:     0.2709 Accuracy: 0.948837
+    Validation Loss:     0.2892 Accuracy: 0.934884
     Epoch 60, Batch 3: 
-    Loss:     0.2694 Accuracy: 0.944186
+    Validation Loss:     0.2861 Accuracy: 0.944186
     Epoch 60, Batch 4: 
-    Loss:     0.2904 Accuracy: 0.939535
+    Validation Loss:     0.4164 Accuracy: 0.920930
+    End of Epoch Losses:
+    Training Loss:     0.0001 Accuracy: 1.000000
+    Validation Loss:     0.4164 Accuracy: 0.920930
     Epoch Number: 61
     Epoch 61, Batch 0: 
-    Loss:     0.2579 Accuracy: 0.944186
+    Validation Loss:     0.1666 Accuracy: 0.953488
     Epoch 61, Batch 1: 
-    Loss:     0.2038 Accuracy: 0.958140
+    Validation Loss:     0.2395 Accuracy: 0.944186
     Epoch 61, Batch 2: 
-    Loss:     0.2115 Accuracy: 0.958140
+    Validation Loss:     0.5523 Accuracy: 0.934884
     Epoch 61, Batch 3: 
-    Loss:     0.2034 Accuracy: 0.958140
+    Validation Loss:     0.3394 Accuracy: 0.944186
     Epoch 61, Batch 4: 
-    Loss:     0.2935 Accuracy: 0.953488
+    Validation Loss:     0.5118 Accuracy: 0.939535
+    End of Epoch Losses:
+    Training Loss:     0.0041 Accuracy: 1.000000
+    Validation Loss:     0.5118 Accuracy: 0.939535
     Epoch Number: 62
     Epoch 62, Batch 0: 
-    Loss:     0.4342 Accuracy: 0.962791
+    Validation Loss:     0.3276 Accuracy: 0.939535
     Epoch 62, Batch 1: 
-    Loss:     0.2803 Accuracy: 0.948837
+    Validation Loss:     0.2961 Accuracy: 0.953488
     Epoch 62, Batch 2: 
-    Loss:     0.2357 Accuracy: 0.953488
+    Validation Loss:     0.2374 Accuracy: 0.958140
     Epoch 62, Batch 3: 
-    Loss:     0.2941 Accuracy: 0.953488
+    Validation Loss:     0.2585 Accuracy: 0.934884
     Epoch 62, Batch 4: 
-    Loss:     0.3100 Accuracy: 0.939535
+    Validation Loss:     0.2141 Accuracy: 0.925581
+    End of Epoch Losses:
+    Training Loss:     0.0042 Accuracy: 1.000000
+    Validation Loss:     0.2141 Accuracy: 0.925581
     Epoch Number: 63
     Epoch 63, Batch 0: 
-    Loss:     0.3674 Accuracy: 0.948837
+    Validation Loss:     0.2871 Accuracy: 0.916279
     Epoch 63, Batch 1: 
-    Loss:     0.3590 Accuracy: 0.962791
+    Validation Loss:     0.2477 Accuracy: 0.944186
     Epoch 63, Batch 2: 
-    Loss:     0.4243 Accuracy: 0.953488
+    Validation Loss:     0.2175 Accuracy: 0.962791
     Epoch 63, Batch 3: 
-    Loss:     0.6699 Accuracy: 0.869767
+    Validation Loss:     0.1369 Accuracy: 0.939535
     Epoch 63, Batch 4: 
-    Loss:     0.3654 Accuracy: 0.934884
+    Validation Loss:     0.9398 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0033 Accuracy: 1.000000
+    Validation Loss:     0.9398 Accuracy: 0.930233
     Epoch Number: 64
     Epoch 64, Batch 0: 
-    Loss:     0.2628 Accuracy: 0.934884
+    Validation Loss:     0.2734 Accuracy: 0.930233
     Epoch 64, Batch 1: 
-    Loss:     0.1699 Accuracy: 0.930233
+    Validation Loss:     0.2989 Accuracy: 0.934884
     Epoch 64, Batch 2: 
-    Loss:     0.2107 Accuracy: 0.944186
+    Validation Loss:     0.5951 Accuracy: 0.953488
     Epoch 64, Batch 3: 
-    Loss:     0.3443 Accuracy: 0.934884
+    Validation Loss:     0.1434 Accuracy: 0.948837
     Epoch 64, Batch 4: 
-    Loss:     0.1497 Accuracy: 0.953488
+    Validation Loss:     0.1287 Accuracy: 0.953488
+    End of Epoch Losses:
+    Training Loss:     0.0059 Accuracy: 1.000000
+    Validation Loss:     0.1287 Accuracy: 0.953488
     Epoch Number: 65
     Epoch 65, Batch 0: 
-    Loss:     0.2117 Accuracy: 0.948837
+    Validation Loss:     0.0982 Accuracy: 0.972093
     Epoch 65, Batch 1: 
-    Loss:     0.3474 Accuracy: 0.948837
+    Validation Loss:     0.0978 Accuracy: 0.976744
     Epoch 65, Batch 2: 
-    Loss:     0.1992 Accuracy: 0.934884
+    Validation Loss:     0.1224 Accuracy: 0.962791
     Epoch 65, Batch 3: 
-    Loss:     0.2240 Accuracy: 0.958140
+    Validation Loss:     0.1318 Accuracy: 0.967442
     Epoch 65, Batch 4: 
-    Loss:     0.2229 Accuracy: 0.953488
+    Validation Loss:     0.1779 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0055 Accuracy: 1.000000
+    Validation Loss:     0.1779 Accuracy: 0.958140
     Epoch Number: 66
     Epoch 66, Batch 0: 
-    Loss:     0.2373 Accuracy: 0.953488
+    Validation Loss:     0.1116 Accuracy: 0.967442
     Epoch 66, Batch 1: 
-    Loss:     0.3188 Accuracy: 0.944186
+    Validation Loss:     0.1090 Accuracy: 0.972093
     Epoch 66, Batch 2: 
-    Loss:     0.3149 Accuracy: 0.958140
+    Validation Loss:     0.2000 Accuracy: 0.953488
     Epoch 66, Batch 3: 
-    Loss:     0.3437 Accuracy: 0.948837
+    Validation Loss:     0.1572 Accuracy: 0.972093
     Epoch 66, Batch 4: 
-    Loss:     0.3797 Accuracy: 0.953488
+    Validation Loss:     0.1084 Accuracy: 0.972093
+    End of Epoch Losses:
+    Training Loss:     0.0041 Accuracy: 1.000000
+    Validation Loss:     0.1084 Accuracy: 0.972093
     Epoch Number: 67
     Epoch 67, Batch 0: 
-    Loss:     0.3467 Accuracy: 0.962791
+    Validation Loss:     0.3511 Accuracy: 0.930233
     Epoch 67, Batch 1: 
-    Loss:     0.3228 Accuracy: 0.967442
+    Validation Loss:     0.1901 Accuracy: 0.953488
     Epoch 67, Batch 2: 
-    Loss:     0.3959 Accuracy: 0.958140
+    Validation Loss:     0.3674 Accuracy: 0.944186
     Epoch 67, Batch 3: 
-    Loss:     0.4809 Accuracy: 0.944186
+    Validation Loss:     0.2195 Accuracy: 0.962791
     Epoch 67, Batch 4: 
-    Loss:     0.5338 Accuracy: 0.920930
+    Validation Loss:     0.1701 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0316 Accuracy: 1.000000
+    Validation Loss:     0.1701 Accuracy: 0.958140
     Epoch Number: 68
     Epoch 68, Batch 0: 
-    Loss:     0.7027 Accuracy: 0.934884
+    Validation Loss:     0.1629 Accuracy: 0.948837
     Epoch 68, Batch 1: 
-    Loss:     0.7062 Accuracy: 0.846512
+    Validation Loss:     0.2729 Accuracy: 0.953488
     Epoch 68, Batch 2: 
-    Loss:     0.8437 Accuracy: 0.883721
+    Validation Loss:     0.3234 Accuracy: 0.944186
     Epoch 68, Batch 3: 
-    Loss:     0.2314 Accuracy: 0.897674
+    Validation Loss:     0.2083 Accuracy: 0.958140
     Epoch 68, Batch 4: 
-    Loss:     0.2648 Accuracy: 0.925581
+    Validation Loss:     0.1731 Accuracy: 0.953488
+    End of Epoch Losses:
+    Training Loss:     0.0094 Accuracy: 1.000000
+    Validation Loss:     0.1731 Accuracy: 0.953488
     Epoch Number: 69
     Epoch 69, Batch 0: 
-    Loss:     0.2976 Accuracy: 0.902326
+    Validation Loss:     0.1119 Accuracy: 0.976744
     Epoch 69, Batch 1: 
-    Loss:     0.2541 Accuracy: 0.925581
+    Validation Loss:     0.2330 Accuracy: 0.948837
     Epoch 69, Batch 2: 
-    Loss:     0.2758 Accuracy: 0.934884
+    Validation Loss:     0.2374 Accuracy: 0.953488
     Epoch 69, Batch 3: 
-    Loss:     0.2810 Accuracy: 0.939535
+    Validation Loss:     0.1481 Accuracy: 0.967442
     Epoch 69, Batch 4: 
-    Loss:     0.2626 Accuracy: 0.911628
+    Validation Loss:     0.1330 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0349 Accuracy: 1.000000
+    Validation Loss:     0.1330 Accuracy: 0.958140
     Epoch Number: 70
     Epoch 70, Batch 0: 
-    Loss:     0.2128 Accuracy: 0.944186
+    Validation Loss:     0.1920 Accuracy: 0.962791
     Epoch 70, Batch 1: 
-    Loss:     0.2118 Accuracy: 0.948837
+    Validation Loss:     0.2037 Accuracy: 0.958140
     Epoch 70, Batch 2: 
-    Loss:     0.2658 Accuracy: 0.948837
+    Validation Loss:     0.2151 Accuracy: 0.962791
     Epoch 70, Batch 3: 
-    Loss:     0.3105 Accuracy: 0.958140
+    Validation Loss:     0.5951 Accuracy: 0.920930
     Epoch 70, Batch 4: 
-    Loss:     0.2980 Accuracy: 0.934884
+    Validation Loss:     0.1685 Accuracy: 0.962791
+    End of Epoch Losses:
+    Training Loss:     0.0022 Accuracy: 1.000000
+    Validation Loss:     0.1685 Accuracy: 0.962791
     Epoch Number: 71
     Epoch 71, Batch 0: 
-    Loss:     0.2794 Accuracy: 0.930233
+    Validation Loss:     0.1532 Accuracy: 0.962791
     Epoch 71, Batch 1: 
-    Loss:     0.3128 Accuracy: 0.948837
+    Validation Loss:     0.1868 Accuracy: 0.953488
     Epoch 71, Batch 2: 
-    Loss:     0.4253 Accuracy: 0.916279
+    Validation Loss:     0.1781 Accuracy: 0.953488
     Epoch 71, Batch 3: 
-    Loss:     0.2760 Accuracy: 0.944186
+    Validation Loss:     0.1871 Accuracy: 0.962791
     Epoch 71, Batch 4: 
-    Loss:     0.3296 Accuracy: 0.953488
+    Validation Loss:     0.2255 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0007 Accuracy: 1.000000
+    Validation Loss:     0.2255 Accuracy: 0.948837
     Epoch Number: 72
     Epoch 72, Batch 0: 
-    Loss:     0.3584 Accuracy: 0.958140
+    Validation Loss:     0.1946 Accuracy: 0.972093
     Epoch 72, Batch 1: 
-    Loss:     0.4186 Accuracy: 0.930233
+    Validation Loss:     0.1392 Accuracy: 0.972093
     Epoch 72, Batch 2: 
-    Loss:     0.2927 Accuracy: 0.920930
+    Validation Loss:     0.2376 Accuracy: 0.953488
     Epoch 72, Batch 3: 
-    Loss:     0.3178 Accuracy: 0.930233
+    Validation Loss:     0.2308 Accuracy: 0.953488
     Epoch 72, Batch 4: 
-    Loss:     0.3110 Accuracy: 0.934884
+    Validation Loss:     0.1791 Accuracy: 0.939535
+    End of Epoch Losses:
+    Training Loss:     0.0009 Accuracy: 1.000000
+    Validation Loss:     0.1791 Accuracy: 0.939535
     Epoch Number: 73
     Epoch 73, Batch 0: 
-    Loss:     0.4884 Accuracy: 0.939535
+    Validation Loss:     0.2910 Accuracy: 0.962791
     Epoch 73, Batch 1: 
-    Loss:     0.3680 Accuracy: 0.939535
+    Validation Loss:     0.2013 Accuracy: 0.967442
     Epoch 73, Batch 2: 
-    Loss:     0.2346 Accuracy: 0.958140
+    Validation Loss:     0.3634 Accuracy: 0.948837
     Epoch 73, Batch 3: 
-    Loss:     0.2364 Accuracy: 0.953488
+    Validation Loss:     0.2818 Accuracy: 0.962791
     Epoch 73, Batch 4: 
-    Loss:     0.2710 Accuracy: 0.948837
+    Validation Loss:     0.1667 Accuracy: 0.967442
+    End of Epoch Losses:
+    Training Loss:     0.0014 Accuracy: 1.000000
+    Validation Loss:     0.1667 Accuracy: 0.967442
     Epoch Number: 74
     Epoch 74, Batch 0: 
-    Loss:     0.2804 Accuracy: 0.958140
+    Validation Loss:     0.1744 Accuracy: 0.967442
     Epoch 74, Batch 1: 
-    Loss:     0.2529 Accuracy: 0.953488
+    Validation Loss:     0.2175 Accuracy: 0.976744
     Epoch 74, Batch 2: 
-    Loss:     0.2099 Accuracy: 0.953488
+    Validation Loss:     0.3905 Accuracy: 0.948837
     Epoch 74, Batch 3: 
-    Loss:     0.2424 Accuracy: 0.958140
+    Validation Loss:     0.3027 Accuracy: 0.958140
     Epoch 74, Batch 4: 
-    Loss:     0.2462 Accuracy: 0.939535
+    Validation Loss:     0.2732 Accuracy: 0.944186
+    End of Epoch Losses:
+    Training Loss:     0.0003 Accuracy: 1.000000
+    Validation Loss:     0.2732 Accuracy: 0.944186
     Epoch Number: 75
     Epoch 75, Batch 0: 
-    Loss:     0.3696 Accuracy: 0.948837
+    Validation Loss:     0.2866 Accuracy: 0.953488
     Epoch 75, Batch 1: 
-    Loss:     0.3152 Accuracy: 0.920930
+    Validation Loss:     0.3922 Accuracy: 0.911628
     Epoch 75, Batch 2: 
-    Loss:     0.2246 Accuracy: 0.953488
+    Validation Loss:     0.3166 Accuracy: 0.944186
     Epoch 75, Batch 3: 
-    Loss:     0.2601 Accuracy: 0.934884
+    Validation Loss:     0.1387 Accuracy: 0.948837
     Epoch 75, Batch 4: 
-    Loss:     0.2776 Accuracy: 0.944186
+    Validation Loss:     0.2654 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0212 Accuracy: 1.000000
+    Validation Loss:     0.2654 Accuracy: 0.930233
     Epoch Number: 76
     Epoch 76, Batch 0: 
-    Loss:     0.3021 Accuracy: 0.962791
+    Validation Loss:     0.1929 Accuracy: 0.948837
     Epoch 76, Batch 1: 
-    Loss:     0.3420 Accuracy: 0.967442
+    Validation Loss:     0.2342 Accuracy: 0.962791
     Epoch 76, Batch 2: 
-    Loss:     0.3697 Accuracy: 0.953488
+    Validation Loss:     0.2073 Accuracy: 0.958140
     Epoch 76, Batch 3: 
-    Loss:     0.3339 Accuracy: 0.948837
+    Validation Loss:     0.2150 Accuracy: 0.962791
     Epoch 76, Batch 4: 
-    Loss:     0.3678 Accuracy: 0.948837
+    Validation Loss:     0.2119 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0014 Accuracy: 1.000000
+    Validation Loss:     0.2119 Accuracy: 0.958140
     Epoch Number: 77
     Epoch 77, Batch 0: 
-    Loss:     0.5419 Accuracy: 0.911628
+    Validation Loss:     0.2048 Accuracy: 0.958140
     Epoch 77, Batch 1: 
-    Loss:     0.4337 Accuracy: 0.934884
+    Validation Loss:     0.2072 Accuracy: 0.962791
     Epoch 77, Batch 2: 
-    Loss:     0.3589 Accuracy: 0.939535
+    Validation Loss:     0.3975 Accuracy: 0.934884
     Epoch 77, Batch 3: 
-    Loss:     0.4386 Accuracy: 0.944186
+    Validation Loss:     0.3932 Accuracy: 0.958140
     Epoch 77, Batch 4: 
-    Loss:     0.5043 Accuracy: 0.920930
+    Validation Loss:     0.4820 Accuracy: 0.962791
+    End of Epoch Losses:
+    Training Loss:     0.0014 Accuracy: 1.000000
+    Validation Loss:     0.4820 Accuracy: 0.962791
     Epoch Number: 78
     Epoch 78, Batch 0: 
-    Loss:     0.5063 Accuracy: 0.939535
+    Validation Loss:     0.5707 Accuracy: 0.962791
     Epoch 78, Batch 1: 
-    Loss:     0.4255 Accuracy: 0.939535
+    Validation Loss:     0.4255 Accuracy: 0.967442
     Epoch 78, Batch 2: 
-    Loss:     0.3956 Accuracy: 0.934884
+    Validation Loss:     0.4051 Accuracy: 0.967442
     Epoch 78, Batch 3: 
-    Loss:     0.3178 Accuracy: 0.962791
+    Validation Loss:     0.4393 Accuracy: 0.967442
     Epoch 78, Batch 4: 
-    Loss:     0.4245 Accuracy: 0.948837
+    Validation Loss:     0.4967 Accuracy: 0.962791
+    End of Epoch Losses:
+    Training Loss:     0.0007 Accuracy: 1.000000
+    Validation Loss:     0.4967 Accuracy: 0.962791
     Epoch Number: 79
     Epoch 79, Batch 0: 
-    Loss:     0.4694 Accuracy: 0.939535
+    Validation Loss:     0.4824 Accuracy: 0.962791
     Epoch 79, Batch 1: 
-    Loss:     0.5149 Accuracy: 0.944186
+    Validation Loss:     0.6684 Accuracy: 0.939535
     Epoch 79, Batch 2: 
-    Loss:     0.3716 Accuracy: 0.948837
+    Validation Loss:     0.7397 Accuracy: 0.827907
     Epoch 79, Batch 3: 
-    Loss:     0.3513 Accuracy: 0.948837
+    Validation Loss:     0.3143 Accuracy: 0.874419
     Epoch 79, Batch 4: 
-    Loss:     0.5002 Accuracy: 0.920930
+    Validation Loss:     0.2455 Accuracy: 0.925581
+    End of Epoch Losses:
+    Training Loss:     0.0467 Accuracy: 1.000000
+    Validation Loss:     0.2455 Accuracy: 0.925581
     Epoch Number: 80
     Epoch 80, Batch 0: 
-    Loss:     0.3704 Accuracy: 0.948837
+    Validation Loss:     0.2518 Accuracy: 0.911628
     Epoch 80, Batch 1: 
-    Loss:     0.4132 Accuracy: 0.948837
+    Validation Loss:     0.2497 Accuracy: 0.930233
     Epoch 80, Batch 2: 
-    Loss:     0.4380 Accuracy: 0.948837
+    Validation Loss:     0.2187 Accuracy: 0.930233
     Epoch 80, Batch 3: 
-    Loss:     0.4981 Accuracy: 0.930233
+    Validation Loss:     0.1932 Accuracy: 0.916279
     Epoch 80, Batch 4: 
-    Loss:     0.3605 Accuracy: 0.958140
+    Validation Loss:     0.5456 Accuracy: 0.944186
+    End of Epoch Losses:
+    Training Loss:     0.0400 Accuracy: 1.000000
+    Validation Loss:     0.5456 Accuracy: 0.944186
     Epoch Number: 81
     Epoch 81, Batch 0: 
-    Loss:     0.2695 Accuracy: 0.944186
+    Validation Loss:     0.1783 Accuracy: 0.934884
     Epoch 81, Batch 1: 
-    Loss:     0.2840 Accuracy: 0.953488
+    Validation Loss:     0.5169 Accuracy: 0.930233
     Epoch 81, Batch 2: 
-    Loss:     0.3014 Accuracy: 0.944186
+    Validation Loss:     0.3267 Accuracy: 0.934884
     Epoch 81, Batch 3: 
-    Loss:     0.3232 Accuracy: 0.939535
+    Validation Loss:     0.7330 Accuracy: 0.934884
     Epoch 81, Batch 4: 
-    Loss:     0.3901 Accuracy: 0.930233
+    Validation Loss:     0.3843 Accuracy: 0.916279
+    End of Epoch Losses:
+    Training Loss:     0.0583 Accuracy: 1.000000
+    Validation Loss:     0.3843 Accuracy: 0.916279
     Epoch Number: 82
     Epoch 82, Batch 0: 
-    Loss:     0.4340 Accuracy: 0.944186
+    Validation Loss:     0.2960 Accuracy: 0.906977
     Epoch 82, Batch 1: 
-    Loss:     0.3872 Accuracy: 0.958140
+    Validation Loss:     0.1775 Accuracy: 0.944186
     Epoch 82, Batch 2: 
-    Loss:     0.3748 Accuracy: 0.962791
+    Validation Loss:     0.3761 Accuracy: 0.939535
     Epoch 82, Batch 3: 
-    Loss:     0.3995 Accuracy: 0.967442
+    Validation Loss:     0.3292 Accuracy: 0.944186
     Epoch 82, Batch 4: 
-    Loss:     0.5296 Accuracy: 0.958140
+    Validation Loss:     0.5017 Accuracy: 0.930233
+    End of Epoch Losses:
+    Training Loss:     0.0007 Accuracy: 1.000000
+    Validation Loss:     0.5017 Accuracy: 0.930233
     Epoch Number: 83
     Epoch 83, Batch 0: 
-    Loss:     1.0387 Accuracy: 0.851163
+    Validation Loss:     0.3845 Accuracy: 0.939535
     Epoch 83, Batch 1: 
-    Loss:     0.2581 Accuracy: 0.925581
+    Validation Loss:     0.4254 Accuracy: 0.934884
     Epoch 83, Batch 2: 
-    Loss:     0.2639 Accuracy: 0.944186
+    Validation Loss:     0.7425 Accuracy: 0.925581
     Epoch 83, Batch 3: 
-    Loss:     0.3061 Accuracy: 0.948837
+    Validation Loss:     0.6571 Accuracy: 0.925581
     Epoch 83, Batch 4: 
-    Loss:     0.3497 Accuracy: 0.939535
+    Validation Loss:     0.5390 Accuracy: 0.944186
+    End of Epoch Losses:
+    Training Loss:     0.0002 Accuracy: 1.000000
+    Validation Loss:     0.5390 Accuracy: 0.944186
     Epoch Number: 84
     Epoch 84, Batch 0: 
-    Loss:     1.0478 Accuracy: 0.818605
+    Validation Loss:     0.4939 Accuracy: 0.939535
     Epoch 84, Batch 1: 
-    Loss:     0.4734 Accuracy: 0.851163
+    Validation Loss:     0.3642 Accuracy: 0.953488
     Epoch 84, Batch 2: 
-    Loss:     0.3150 Accuracy: 0.897674
+    Validation Loss:     0.5223 Accuracy: 0.958140
     Epoch 84, Batch 3: 
-    Loss:     0.2625 Accuracy: 0.906977
+    Validation Loss:     0.5566 Accuracy: 0.953488
     Epoch 84, Batch 4: 
-    Loss:     0.5208 Accuracy: 0.916279
+    Validation Loss:     0.5310 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0002 Accuracy: 1.000000
+    Validation Loss:     0.5310 Accuracy: 0.958140
     Epoch Number: 85
     Epoch 85, Batch 0: 
-    Loss:     0.3538 Accuracy: 0.934884
+    Validation Loss:     0.5183 Accuracy: 0.958140
     Epoch 85, Batch 1: 
-    Loss:     0.3365 Accuracy: 0.944186
+    Validation Loss:     0.4453 Accuracy: 0.958140
     Epoch 85, Batch 2: 
-    Loss:     0.2561 Accuracy: 0.948837
+    Validation Loss:     0.4575 Accuracy: 0.962791
     Epoch 85, Batch 3: 
-    Loss:     0.3515 Accuracy: 0.930233
+    Validation Loss:     0.5387 Accuracy: 0.953488
     Epoch 85, Batch 4: 
-    Loss:     0.3775 Accuracy: 0.934884
+    Validation Loss:     0.3492 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0090 Accuracy: 1.000000
+    Validation Loss:     0.3492 Accuracy: 0.958140
     Epoch Number: 86
     Epoch 86, Batch 0: 
-    Loss:     0.4413 Accuracy: 0.930233
+    Validation Loss:     0.3217 Accuracy: 0.958140
     Epoch 86, Batch 1: 
-    Loss:     0.3733 Accuracy: 0.948837
+    Validation Loss:     0.6633 Accuracy: 0.934884
     Epoch 86, Batch 2: 
-    Loss:     0.4337 Accuracy: 0.967442
+    Validation Loss:     0.4663 Accuracy: 0.967442
     Epoch 86, Batch 3: 
-    Loss:     0.4591 Accuracy: 0.967442
+    Validation Loss:     0.4828 Accuracy: 0.967442
     Epoch 86, Batch 4: 
-    Loss:     0.4240 Accuracy: 0.944186
+    Validation Loss:     0.4378 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0003 Accuracy: 1.000000
+    Validation Loss:     0.4378 Accuracy: 0.948837
     Epoch Number: 87
     Epoch 87, Batch 0: 
-    Loss:     0.5933 Accuracy: 0.930233
+    Validation Loss:     0.5214 Accuracy: 0.958140
     Epoch 87, Batch 1: 
-    Loss:     0.4057 Accuracy: 0.920930
+    Validation Loss:     0.5156 Accuracy: 0.958140
     Epoch 87, Batch 2: 
-    Loss:     0.2050 Accuracy: 0.930233
+    Validation Loss:     0.5481 Accuracy: 0.958140
     Epoch 87, Batch 3: 
-    Loss:     0.2016 Accuracy: 0.967442
+    Validation Loss:     0.5462 Accuracy: 0.962791
     Epoch 87, Batch 4: 
-    Loss:     0.2541 Accuracy: 0.953488
+    Validation Loss:     0.5551 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.5551 Accuracy: 0.958140
     Epoch Number: 88
     Epoch 88, Batch 0: 
-    Loss:     0.2014 Accuracy: 0.958140
+    Validation Loss:     0.5503 Accuracy: 0.953488
     Epoch 88, Batch 1: 
-    Loss:     0.2385 Accuracy: 0.953488
+    Validation Loss:     0.5348 Accuracy: 0.958140
     Epoch 88, Batch 2: 
-    Loss:     0.2634 Accuracy: 0.958140
+    Validation Loss:     0.5493 Accuracy: 0.962791
     Epoch 88, Batch 3: 
-    Loss:     0.3832 Accuracy: 0.948837
+    Validation Loss:     0.5597 Accuracy: 0.962791
     Epoch 88, Batch 4: 
-    Loss:     0.4510 Accuracy: 0.948837
+    Validation Loss:     0.5696 Accuracy: 0.967442
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.5696 Accuracy: 0.967442
     Epoch Number: 89
     Epoch 89, Batch 0: 
-    Loss:     0.3482 Accuracy: 0.967442
+    Validation Loss:     0.5765 Accuracy: 0.967442
     Epoch 89, Batch 1: 
-    Loss:     0.3461 Accuracy: 0.972093
+    Validation Loss:     0.5862 Accuracy: 0.967442
     Epoch 89, Batch 2: 
-    Loss:     0.3486 Accuracy: 0.958140
+    Validation Loss:     0.5951 Accuracy: 0.967442
     Epoch 89, Batch 3: 
-    Loss:     0.4382 Accuracy: 0.962791
+    Validation Loss:     0.5903 Accuracy: 0.967442
     Epoch 89, Batch 4: 
-    Loss:     0.4426 Accuracy: 0.953488
+    Validation Loss:     0.5965 Accuracy: 0.967442
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.5965 Accuracy: 0.967442
     Epoch Number: 90
     Epoch 90, Batch 0: 
-    Loss:     0.4304 Accuracy: 0.953488
+    Validation Loss:     0.5996 Accuracy: 0.967442
     Epoch 90, Batch 1: 
-    Loss:     0.4155 Accuracy: 0.962791
+    Validation Loss:     0.6114 Accuracy: 0.962791
     Epoch 90, Batch 2: 
-    Loss:     0.4208 Accuracy: 0.948837
+    Validation Loss:     0.6214 Accuracy: 0.972093
     Epoch 90, Batch 3: 
-    Loss:     0.4959 Accuracy: 0.962791
+    Validation Loss:     0.6333 Accuracy: 0.972093
     Epoch 90, Batch 4: 
-    Loss:     0.5171 Accuracy: 0.962791
+    Validation Loss:     0.6423 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.6423 Accuracy: 0.958140
     Epoch Number: 91
     Epoch 91, Batch 0: 
-    Loss:     0.5254 Accuracy: 0.962791
+    Validation Loss:     0.6445 Accuracy: 0.958140
     Epoch 91, Batch 1: 
-    Loss:     0.5230 Accuracy: 0.967442
+    Validation Loss:     0.6599 Accuracy: 0.958140
     Epoch 91, Batch 2: 
-    Loss:     0.4986 Accuracy: 0.953488
+    Validation Loss:     0.6711 Accuracy: 0.958140
     Epoch 91, Batch 3: 
-    Loss:     0.5108 Accuracy: 0.953488
+    Validation Loss:     0.6785 Accuracy: 0.958140
     Epoch 91, Batch 4: 
-    Loss:     0.5131 Accuracy: 0.953488
+    Validation Loss:     0.6848 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.6848 Accuracy: 0.958140
     Epoch Number: 92
     Epoch 92, Batch 0: 
-    Loss:     0.5284 Accuracy: 0.962791
+    Validation Loss:     0.6874 Accuracy: 0.958140
     Epoch 92, Batch 1: 
-    Loss:     0.5599 Accuracy: 0.958140
+    Validation Loss:     0.6965 Accuracy: 0.958140
     Epoch 92, Batch 2: 
-    Loss:     0.5934 Accuracy: 0.953488
+    Validation Loss:     0.7092 Accuracy: 0.958140
     Epoch 92, Batch 3: 
-    Loss:     0.6106 Accuracy: 0.953488
+    Validation Loss:     0.7172 Accuracy: 0.958140
     Epoch 92, Batch 4: 
-    Loss:     0.9552 Accuracy: 0.944186
+    Validation Loss:     0.7202 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.7202 Accuracy: 0.958140
     Epoch Number: 93
     Epoch 93, Batch 0: 
-    Loss:     1.1987 Accuracy: 0.827907
+    Validation Loss:     0.7269 Accuracy: 0.958140
     Epoch 93, Batch 1: 
-    Loss:     0.4372 Accuracy: 0.851163
+    Validation Loss:     0.7370 Accuracy: 0.958140
     Epoch 93, Batch 2: 
-    Loss:     0.2480 Accuracy: 0.930233
+    Validation Loss:     0.7431 Accuracy: 0.958140
     Epoch 93, Batch 3: 
-    Loss:     0.3106 Accuracy: 0.934884
+    Validation Loss:     0.7506 Accuracy: 0.958140
     Epoch 93, Batch 4: 
-    Loss:     0.3252 Accuracy: 0.948837
+    Validation Loss:     0.7593 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.7593 Accuracy: 0.958140
     Epoch Number: 94
     Epoch 94, Batch 0: 
-    Loss:     0.5682 Accuracy: 0.888372
+    Validation Loss:     0.7634 Accuracy: 0.958140
     Epoch 94, Batch 1: 
-    Loss:     0.5111 Accuracy: 0.920930
+    Validation Loss:     0.7707 Accuracy: 0.958140
     Epoch 94, Batch 2: 
-    Loss:     0.3057 Accuracy: 0.939535
+    Validation Loss:     0.7954 Accuracy: 0.958140
     Epoch 94, Batch 3: 
-    Loss:     0.4308 Accuracy: 0.930233
+    Validation Loss:     0.7902 Accuracy: 0.962791
     Epoch 94, Batch 4: 
-    Loss:     0.3245 Accuracy: 0.906977
+    Validation Loss:     0.7868 Accuracy: 0.967442
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.7868 Accuracy: 0.967442
     Epoch Number: 95
     Epoch 95, Batch 0: 
-    Loss:     0.2151 Accuracy: 0.944186
+    Validation Loss:     0.7886 Accuracy: 0.967442
     Epoch 95, Batch 1: 
-    Loss:     0.2173 Accuracy: 0.958140
+    Validation Loss:     0.7981 Accuracy: 0.962791
     Epoch 95, Batch 2: 
-    Loss:     0.2835 Accuracy: 0.944186
+    Validation Loss:     0.8181 Accuracy: 0.958140
     Epoch 95, Batch 3: 
-    Loss:     0.4240 Accuracy: 0.934884
+    Validation Loss:     0.8268 Accuracy: 0.958140
     Epoch 95, Batch 4: 
-    Loss:     0.4927 Accuracy: 0.939535
+    Validation Loss:     0.8327 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.8327 Accuracy: 0.958140
     Epoch Number: 96
     Epoch 96, Batch 0: 
-    Loss:     0.2514 Accuracy: 0.962791
+    Validation Loss:     0.8378 Accuracy: 0.958140
     Epoch 96, Batch 1: 
-    Loss:     0.2909 Accuracy: 0.967442
+    Validation Loss:     0.8438 Accuracy: 0.958140
     Epoch 96, Batch 2: 
-    Loss:     0.3441 Accuracy: 0.958140
+    Validation Loss:     0.8510 Accuracy: 0.958140
     Epoch 96, Batch 3: 
-    Loss:     0.4875 Accuracy: 0.953488
+    Validation Loss:     0.8618 Accuracy: 0.958140
     Epoch 96, Batch 4: 
-    Loss:     0.6379 Accuracy: 0.958140
+    Validation Loss:     0.8679 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.8679 Accuracy: 0.958140
     Epoch Number: 97
     Epoch 97, Batch 0: 
-    Loss:     0.8955 Accuracy: 0.939535
+    Validation Loss:     0.8700 Accuracy: 0.958140
     Epoch 97, Batch 1: 
-    Loss:     0.6847 Accuracy: 0.948837
+    Validation Loss:     0.8773 Accuracy: 0.958140
     Epoch 97, Batch 2: 
-    Loss:     0.3208 Accuracy: 0.916279
+    Validation Loss:     0.8803 Accuracy: 0.958140
     Epoch 97, Batch 3: 
-    Loss:     0.5979 Accuracy: 0.939535
+    Validation Loss:     0.8888 Accuracy: 0.958140
     Epoch 97, Batch 4: 
-    Loss:     0.5437 Accuracy: 0.925581
+    Validation Loss:     0.8941 Accuracy: 0.958140
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.8941 Accuracy: 0.958140
     Epoch Number: 98
     Epoch 98, Batch 0: 
-    Loss:     0.7126 Accuracy: 0.888372
+    Validation Loss:     0.8354 Accuracy: 0.958140
     Epoch 98, Batch 1: 
-    Loss:     0.3424 Accuracy: 0.897674
+    Validation Loss:     0.8438 Accuracy: 0.948837
     Epoch 98, Batch 2: 
-    Loss:     0.1775 Accuracy: 0.944186
+    Validation Loss:     0.8658 Accuracy: 0.948837
     Epoch 98, Batch 3: 
-    Loss:     0.1991 Accuracy: 0.972093
+    Validation Loss:     0.8836 Accuracy: 0.948837
     Epoch 98, Batch 4: 
-    Loss:     0.2128 Accuracy: 0.972093
+    Validation Loss:     0.8867 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.8867 Accuracy: 0.948837
     Epoch Number: 99
     Epoch 99, Batch 0: 
-    Loss:     0.3904 Accuracy: 0.958140
+    Validation Loss:     0.8899 Accuracy: 0.948837
     Epoch 99, Batch 1: 
-    Loss:     0.2812 Accuracy: 0.934884
+    Validation Loss:     0.8941 Accuracy: 0.948837
     Epoch 99, Batch 2: 
-    Loss:     0.2483 Accuracy: 0.953488
+    Validation Loss:     0.9037 Accuracy: 0.948837
     Epoch 99, Batch 3: 
-    Loss:     0.3509 Accuracy: 0.972093
+    Validation Loss:     0.9120 Accuracy: 0.948837
     Epoch 99, Batch 4: 
-    Loss:     0.3626 Accuracy: 0.958140
+    Validation Loss:     0.9156 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.9156 Accuracy: 0.948837
     Epoch Number: 100
     Epoch 100, Batch 0: 
-    Loss:     0.3177 Accuracy: 0.962791
+    Validation Loss:     0.9250 Accuracy: 0.948837
     Epoch 100, Batch 1: 
-    Loss:     0.2636 Accuracy: 0.967442
+    Validation Loss:     0.9399 Accuracy: 0.953488
     Epoch 100, Batch 2: 
-    Loss:     0.2646 Accuracy: 0.939535
+    Validation Loss:     0.9275 Accuracy: 0.958140
     Epoch 100, Batch 3: 
-    Loss:     0.3276 Accuracy: 0.962791
+    Validation Loss:     0.9225 Accuracy: 0.958140
     Epoch 100, Batch 4: 
-    Loss:     0.3588 Accuracy: 0.962791
-    Epoch Number: 101
-    Epoch 101, Batch 0: 
-    Loss:     0.3759 Accuracy: 0.953488
-    Epoch 101, Batch 1: 
-    Loss:     0.3953 Accuracy: 0.958140
-    Epoch 101, Batch 2: 
-    Loss:     0.4636 Accuracy: 0.916279
-    Epoch 101, Batch 3: 
-    Loss:     0.3216 Accuracy: 0.934884
-    Epoch 101, Batch 4: 
-    Loss:     0.2991 Accuracy: 0.939535
-    Epoch Number: 102
-    Epoch 102, Batch 0: 
-    Loss:     0.4198 Accuracy: 0.897674
-    Epoch 102, Batch 1: 
-    Loss:     0.2184 Accuracy: 0.920930
-    Epoch 102, Batch 2: 
-    Loss:     0.2398 Accuracy: 0.962791
-    Epoch 102, Batch 3: 
-    Loss:     0.4082 Accuracy: 0.846512
-    Epoch 102, Batch 4: 
-    Loss:     0.3731 Accuracy: 0.851163
-    Epoch Number: 103
-    Epoch 103, Batch 0: 
-    Loss:     0.3006 Accuracy: 0.860465
-    Epoch 103, Batch 1: 
-    Loss:     0.2645 Accuracy: 0.888372
-    Epoch 103, Batch 2: 
-    Loss:     0.2641 Accuracy: 0.902326
-    Epoch 103, Batch 3: 
-    Loss:     0.3380 Accuracy: 0.860465
-    Epoch 103, Batch 4: 
-    Loss:     0.2573 Accuracy: 0.925581
-    Epoch Number: 104
-    Epoch 104, Batch 0: 
-    Loss:     0.2940 Accuracy: 0.911628
-    Epoch 104, Batch 1: 
-    Loss:     0.1744 Accuracy: 0.948837
-    Epoch 104, Batch 2: 
-    Loss:     0.2012 Accuracy: 0.930233
-    Epoch 104, Batch 3: 
-    Loss:     0.2573 Accuracy: 0.930233
-    Epoch 104, Batch 4: 
-    Loss:     0.2727 Accuracy: 0.925581
-    Epoch Number: 105
-    Epoch 105, Batch 0: 
-    Loss:     0.2138 Accuracy: 0.944186
-    Epoch 105, Batch 1: 
-    Loss:     0.2682 Accuracy: 0.916279
-    Epoch 105, Batch 2: 
-    Loss:     0.2086 Accuracy: 0.948837
-    Epoch 105, Batch 3: 
-    Loss:     0.2148 Accuracy: 0.925581
-    Epoch 105, Batch 4: 
-    Loss:     0.2636 Accuracy: 0.948837
-    Epoch Number: 106
-    Epoch 106, Batch 0: 
-    Loss:     0.2318 Accuracy: 0.948837
-    Epoch 106, Batch 1: 
-    Loss:     0.2394 Accuracy: 0.962791
-    Epoch 106, Batch 2: 
-    Loss:     0.2278 Accuracy: 0.953488
-    Epoch 106, Batch 3: 
-    Loss:     0.2433 Accuracy: 0.948837
-    Epoch 106, Batch 4: 
-    Loss:     0.2421 Accuracy: 0.967442
-    Epoch Number: 107
-    Epoch 107, Batch 0: 
-    Loss:     0.2098 Accuracy: 0.958140
-    Epoch 107, Batch 1: 
-    Loss:     0.2204 Accuracy: 0.958140
-    Epoch 107, Batch 2: 
-    Loss:     0.2671 Accuracy: 0.948837
-    Epoch 107, Batch 3: 
-    Loss:     0.2421 Accuracy: 0.962791
-    Epoch 107, Batch 4: 
-    Loss:     0.2410 Accuracy: 0.962791
-    Epoch Number: 108
-    Epoch 108, Batch 0: 
-    Loss:     0.2529 Accuracy: 0.958140
-    Epoch 108, Batch 1: 
-    Loss:     0.2421 Accuracy: 0.962791
-    Epoch 108, Batch 2: 
-    Loss:     0.3023 Accuracy: 0.953488
-    Epoch 108, Batch 3: 
-    Loss:     0.3101 Accuracy: 0.958140
-    Epoch 108, Batch 4: 
-    Loss:     0.3190 Accuracy: 0.953488
-    Epoch Number: 109
-    Epoch 109, Batch 0: 
-    Loss:     0.3221 Accuracy: 0.958140
-    Epoch 109, Batch 1: 
-    Loss:     0.3139 Accuracy: 0.953488
-    Epoch 109, Batch 2: 
-    Loss:     0.3493 Accuracy: 0.948837
-    Epoch 109, Batch 3: 
-    Loss:     0.3526 Accuracy: 0.953488
-    Epoch 109, Batch 4: 
-    Loss:     0.3629 Accuracy: 0.953488
-    Epoch Number: 110
-    Epoch 110, Batch 0: 
-    Loss:     0.3705 Accuracy: 0.948837
-    Epoch 110, Batch 1: 
-    Loss:     0.3626 Accuracy: 0.958140
-    Epoch 110, Batch 2: 
-    Loss:     0.3830 Accuracy: 0.958140
-    Epoch 110, Batch 3: 
-    Loss:     0.3906 Accuracy: 0.953488
-    Epoch 110, Batch 4: 
-    Loss:     0.3994 Accuracy: 0.953488
-    Epoch Number: 111
-    Epoch 111, Batch 0: 
-    Loss:     0.4134 Accuracy: 0.948837
-    Epoch 111, Batch 1: 
-    Loss:     0.4006 Accuracy: 0.953488
-    Epoch 111, Batch 2: 
-    Loss:     0.4095 Accuracy: 0.953488
-    Epoch 111, Batch 3: 
-    Loss:     0.4152 Accuracy: 0.953488
-    Epoch 111, Batch 4: 
-    Loss:     0.4188 Accuracy: 0.953488
-    Epoch Number: 112
-    Epoch 112, Batch 0: 
-    Loss:     0.4688 Accuracy: 0.958140
-    Epoch 112, Batch 1: 
-    Loss:     0.4816 Accuracy: 0.953488
-    Epoch 112, Batch 2: 
-    Loss:     0.5278 Accuracy: 0.944186
-    Epoch 112, Batch 3: 
-    Loss:     0.3786 Accuracy: 0.893023
-    Epoch 112, Batch 4: 
-    Loss:     0.2498 Accuracy: 0.944186
-    Epoch Number: 113
-    Epoch 113, Batch 0: 
-    Loss:     0.4262 Accuracy: 0.916279
-    Epoch 113, Batch 1: 
-    Loss:     0.3614 Accuracy: 0.953488
-    Epoch 113, Batch 2: 
-    Loss:     0.1884 Accuracy: 0.944186
-    Epoch 113, Batch 3: 
-    Loss:     0.2071 Accuracy: 0.925581
-    Epoch 113, Batch 4: 
-    Loss:     0.2024 Accuracy: 0.948837
-    Epoch Number: 114
-    Epoch 114, Batch 0: 
-    Loss:     0.2564 Accuracy: 0.944186
-    Epoch 114, Batch 1: 
-    Loss:     0.3056 Accuracy: 0.934884
-    Epoch 114, Batch 2: 
-    Loss:     0.3084 Accuracy: 0.934884
-    Epoch 114, Batch 3: 
-    Loss:     0.4757 Accuracy: 0.934884
-    Epoch 114, Batch 4: 
-    Loss:     0.4978 Accuracy: 0.953488
-    Epoch Number: 115
-    Epoch 115, Batch 0: 
-    Loss:     0.4161 Accuracy: 0.962791
-    Epoch 115, Batch 1: 
-    Loss:     0.4019 Accuracy: 0.972093
-    Epoch 115, Batch 2: 
-    Loss:     0.4803 Accuracy: 0.958140
-    Epoch 115, Batch 3: 
-    Loss:     0.5085 Accuracy: 0.944186
-    Epoch 115, Batch 4: 
-    Loss:     0.4995 Accuracy: 0.948837
-    Epoch Number: 116
-    Epoch 116, Batch 0: 
-    Loss:     0.4295 Accuracy: 0.958140
-    Epoch 116, Batch 1: 
-    Loss:     0.4204 Accuracy: 0.967442
-    Epoch 116, Batch 2: 
-    Loss:     0.4279 Accuracy: 0.967442
-    Epoch 116, Batch 3: 
-    Loss:     0.4665 Accuracy: 0.958140
-    Epoch 116, Batch 4: 
-    Loss:     0.4502 Accuracy: 0.962791
-    Epoch Number: 117
-    Epoch 117, Batch 0: 
-    Loss:     0.4936 Accuracy: 0.962791
-    Epoch 117, Batch 1: 
-    Loss:     0.3634 Accuracy: 0.953488
-    Epoch 117, Batch 2: 
-    Loss:     0.3484 Accuracy: 0.944186
-    Epoch 117, Batch 3: 
-    Loss:     0.4102 Accuracy: 0.958140
-    Epoch 117, Batch 4: 
-    Loss:     0.5322 Accuracy: 0.934884
-    Epoch Number: 118
-    Epoch 118, Batch 0: 
-    Loss:     0.6111 Accuracy: 0.925581
-    Epoch 118, Batch 1: 
-    Loss:     0.4095 Accuracy: 0.948837
-    Epoch 118, Batch 2: 
-    Loss:     0.4219 Accuracy: 0.953488
-    Epoch 118, Batch 3: 
-    Loss:     0.4517 Accuracy: 0.953488
-    Epoch 118, Batch 4: 
-    Loss:     0.5744 Accuracy: 0.934884
-    Epoch Number: 119
-    Epoch 119, Batch 0: 
-    Loss:     0.6023 Accuracy: 0.925581
-    Epoch 119, Batch 1: 
-    Loss:     0.6317 Accuracy: 0.920930
-    Epoch 119, Batch 2: 
-    Loss:     0.5149 Accuracy: 0.906977
-    Epoch 119, Batch 3: 
-    Loss:     0.5892 Accuracy: 0.962791
-    Epoch 119, Batch 4: 
-    Loss:     0.5051 Accuracy: 0.930233
-    Epoch Number: 120
-    Epoch 120, Batch 0: 
-    Loss:     0.4471 Accuracy: 0.925581
-    Epoch 120, Batch 1: 
-    Loss:     0.4470 Accuracy: 0.939535
-    Epoch 120, Batch 2: 
-    Loss:     0.4181 Accuracy: 0.944186
-    Epoch 120, Batch 3: 
-    Loss:     0.4164 Accuracy: 0.944186
-    Epoch 120, Batch 4: 
-    Loss:     0.4378 Accuracy: 0.939535
-    Epoch Number: 121
-    Epoch 121, Batch 0: 
-    Loss:     0.4410 Accuracy: 0.939535
-    Epoch 121, Batch 1: 
-    Loss:     0.4360 Accuracy: 0.948837
-    Epoch 121, Batch 2: 
-    Loss:     0.4516 Accuracy: 0.948837
-    Epoch 121, Batch 3: 
-    Loss:     0.4498 Accuracy: 0.948837
-    Epoch 121, Batch 4: 
-    Loss:     0.4531 Accuracy: 0.944186
-    Epoch Number: 122
-    Epoch 122, Batch 0: 
-    Loss:     0.4546 Accuracy: 0.944186
-    Epoch 122, Batch 1: 
-    Loss:     0.4415 Accuracy: 0.948837
-    Epoch 122, Batch 2: 
-    Loss:     0.4535 Accuracy: 0.948837
-    Epoch 122, Batch 3: 
-    Loss:     0.4737 Accuracy: 0.948837
-    Epoch 122, Batch 4: 
-    Loss:     0.4827 Accuracy: 0.944186
-    Epoch Number: 123
-    Epoch 123, Batch 0: 
-    Loss:     0.4876 Accuracy: 0.944186
-    Epoch 123, Batch 1: 
-    Loss:     0.4900 Accuracy: 0.944186
-    Epoch 123, Batch 2: 
-    Loss:     0.4946 Accuracy: 0.944186
-    Epoch 123, Batch 3: 
-    Loss:     0.5013 Accuracy: 0.944186
-    Epoch 123, Batch 4: 
-    Loss:     0.5070 Accuracy: 0.944186
-    Epoch Number: 124
-    Epoch 124, Batch 0: 
-    Loss:     0.5121 Accuracy: 0.944186
-    Epoch 124, Batch 1: 
-    Loss:     0.5153 Accuracy: 0.944186
-    Epoch 124, Batch 2: 
-    Loss:     0.5176 Accuracy: 0.944186
-    Epoch 124, Batch 3: 
-    Loss:     0.5206 Accuracy: 0.944186
-    Epoch 124, Batch 4: 
-    Loss:     0.5230 Accuracy: 0.944186
+    Validation Loss:     0.9248 Accuracy: 0.948837
+    End of Epoch Losses:
+    Training Loss:     0.0000 Accuracy: 1.000000
+    Validation Loss:     0.9248 Accuracy: 0.948837
     Training Completed
 
 
-By tweaking the code and adjusting the hyperparameters, I've increased the accuracy from my prior submission by almost 20%. 
+By tweaking the code and adjusting the hyperparameters, I've increased the accuracy from my prior submission by 7%. Now let's check the overall fit of the data:
+
+
+```python
+
+plt.plot(train_loss, label='Training loss')
+plt.plot(valid_loss, label='Validation loss')
+plt.legend()
+_ = plt.ylim()
+plt.show()
+
+    
+```
+
+
+![png](output_33_0.png)
+
+
+Based on the training and validation loss over epoch, we probably trained the model for too long. Ideally, we would have stopped around 42 epochs. By training for 101 epochs, the validation loss eventually runs away from the training loss, resulting in overfitting.
 
 
 ### Goal 3: Evaluate the neural network and show us the results
 #### Testing the Model:
 
-We will test the model using our test_images and test_labels data. We will do this by creating a method to test the model that will load the model with get_tensor_by_name and run it again our testing data. 
+We will test the model using our test_images and test_labels data. We will do this by first creating a method to display a few random predictions. Next, we'll create a method to test the model that will load the model with get_tensor_by_name and run it again our testing data. 
+
+
+```python
+from sklearn.preprocessing import LabelBinarizer
+plt.clf()
+
+def display_image_predictions(imagez, labelz, predictions):
+    n_classes = 2
+    label_names = ["Not Food", "Food"]
+    label_binarizer = LabelBinarizer()
+    label_binarizer.fit(range(n_classes))
+    label_ids = label_binarizer.inverse_transform(np.array(labelz))
+
+    fig, axies = plt.subplots(nrows=4, ncols=2)
+    fig.tight_layout()
+    fig.suptitle('Softmax Predictions', fontsize=20, y=1.1)
+
+    n_predictions = 2
+    margin = 0.05
+    ind = np.arange(n_predictions)
+    width = (1. - 2. * margin) / n_predictions
+
+    for image_i, (img, label_id, pred_indicies, pred_values) in enumerate(zip(imagez, label_ids, predictions.indices, predictions.values)):
+        pred_names = [label_names[pred_i] for pred_i in pred_indicies]
+        correct_name = label_names[label_id]
+
+        RGB_img = img[:,:,::-1]    
+        axies[image_i][0].imshow(RGB_img)
+        axies[image_i][0].set_title(correct_name)
+        axies[image_i][0].set_axis_off()
+        axies[image_i][1].barh(ind + margin, pred_values[::-1], [.4,.4])
+        axies[image_i][1].set_yticks(ind + margin)
+        axies[image_i][1].set_yticklabels(pred_names[::-1])
+        axies[image_i][1].set_xticks([0, 0.5, 1.0])
+    
+    plt.show()
+    print("Display Image Predictions Complete")
+```
 
 
 ```python
 save_model_path = "./training_sess"
 n_samples = 4
-top_n_predictions = 3
+top_n_predictions = 2
 
 def test_model():
     """
     Test the saved model against the test dataset
     """
 
-    #test_images, test_labels = pickle.load(open('preprocess_test.p', mode='rb'))
     loaded_graph = tf.Graph()
 
     with tf.Session(graph=loaded_graph) as sess:
@@ -2104,13 +2232,26 @@ def test_model():
         random_test_predictions = sess.run(
             tf.nn.top_k(tf.nn.softmax(loaded_logits), 2),
             feed_dict={loaded_x: transposed_images, loaded_y: random_test_labels, loaded_keep_prob: 1.0})
+        display_image_predictions(random_test_images, random_test_labels, random_test_predictions)
 
 
 test_model()
 ```
 
-    Testing Accuracy: 0.9241071428571429
+    INFO:tensorflow:Restoring parameters from ./training_sess
+    Testing Accuracy: 0.9196428571428571
     
+
+
+
+    <matplotlib.figure.Figure at 0x11f8bbef0>
+
+
+
+![png](output_36_2.png)
+
+
+    Display Image Predictions Complete
 
 
 Woot! This testing accuracy is 8% higher than my previous submission. 
@@ -2182,22 +2323,32 @@ with tf.Session(graph=loaded_graph) as sess:
         test_batch_acc_total += sess.run(loaded_acc, feed_dict={loaded_x: transposed_images, loaded_y: label_stack, loaded_keep_prob: 1.0})
         
 
-        print('Testing Accuracy: {}\n'.format(test_batch_acc_total))     
+        print('Testing Accuracy: {}\n'.format(test_batch_acc_total))
+        
+
+
+
+
+
+
+
+
+
 ```
 
-    1.0
+    INFO:tensorflow:Restoring parameters from ./training_sess
+    Testing Accuracy: 1.0
+    
 
 
 Wonderful! If the testing accuracy is 1, then the model correctly predicted the given image, if the testing accuracy is 0, then the model failed to predict if the image was food or not food. 
 
 
-#### Future Work
+### Future Work:
 
 For further improvements to the program, I would implement the following:
 
-* I would plot the training and validation accuracies vs. epochs to check for under and overfitting. 
 * I would further expand the dataset by randomly cropping, translating and scaling images, or by using an online dataset
-* I would implement early stopping to prevent overfitting 
 * I'd like to see the results of implementing a k-fold cross validation, as it's good to use with limited datasets
 
 
